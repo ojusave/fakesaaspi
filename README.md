@@ -15,6 +15,8 @@ The repository includes the Firstmile SDK that powers position-only workshop tel
 
 The Blueprint generates distinct values for `ADMIN_TOKEN`, `DASHBOARD_TOKEN`, and `WRITE_KEY`. It configures the release URL automatically.
 
+The web service uses Render's free instance type by default.
+
 ## Workshop URLs
 
 - Participant flow: `/`
