@@ -53,6 +53,24 @@ function grepForbidden(label, pattern, directory) {
 }
 
 console.log("firstmile verify (Prompt 1)");
+
+function checkKitDrift() {
+  console.log("\n==> kit ownership drift check");
+  const expected = readFileSync(join(root, ".firstmile-kit-tree"), "utf8").trim();
+  const actual = execSync("git rev-parse HEAD:packages/kit", { cwd: root })
+    .toString()
+    .trim();
+  if (expected !== actual) {
+    console.error(
+      "FAIL: packages/kit is owned by ojusave/firstmile; change it there and run scripts/sync-kit.sh",
+    );
+    console.error(`  expected ${expected}, found ${actual}`);
+    process.exit(1);
+  }
+  console.log("ok");
+}
+
+checkKitDrift();
 run("lint", "npm run lint");
 run("typecheck", "npm run typecheck");
 run("test", "npm run test");
