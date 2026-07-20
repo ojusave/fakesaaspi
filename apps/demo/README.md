@@ -18,3 +18,7 @@ npm start --workspace @firstmile/demo
 ```
 
 Open `http://localhost:10000`. The projector is at `/present`. The admin page is at `/admin?token=admin-secret`.
+
+## Admin reset
+
+The admin page has a RESET button (`POST /admin/reset`, admin-token gated) that clears the in-memory sessions and events so `/present` starts empty between runs. This only wipes in-memory state: the stdout JSONL log (each accepted event is written to stdout, mirrored in the Render logs) is unaffected and remains the archive of the session.

@@ -69,6 +69,7 @@ const STEP_INFO = {
 };
 
 const namesBySession = new Map();
+const takenNames = new Set();
 
 function hash(value) {
   let h = 0;
@@ -82,7 +83,15 @@ function nameFor(sessionId) {
   const existing = namesBySession.get(sessionId);
   if (existing) return existing;
   const h = hash(sessionId);
-  const name = `${ADJECTIVES[h % ADJECTIVES.length]} ${NOUNS[(h >> 8) % NOUNS.length]}`;
+  const base = `${ADJECTIVES[h % ADJECTIVES.length]} ${NOUNS[(h >> 8) % NOUNS.length]}`;
+  // On collision, append the smallest free numeral ("Chaotic Pickle 2").
+  let name = base;
+  let suffix = 2;
+  while (takenNames.has(name)) {
+    name = `${base} ${suffix}`;
+    suffix += 1;
+  }
+  takenNames.add(name);
   namesBySession.set(sessionId, name);
   return name;
 }

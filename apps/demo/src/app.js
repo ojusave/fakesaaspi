@@ -27,12 +27,25 @@ function counts(fm) {
 export function createDemoApp(config) {
     let portalState = "trap";
     const ref = { current: null };
+    // counts() re-parses the full JSONL export, so cache it for one second:
+    // a burst of ingests within the same second reuses the same value.
+    let countsCache = null;
+    let countsCacheAt = 0;
+    function cachedCounts() {
+        const now = Date.now();
+        if (countsCache !== null && now - countsCacheAt < 1000)
+            return countsCache;
+        countsCache = counts(ref.current);
+        countsCacheAt = now;
+        return countsCache;
+    }
     const fm = createFirstmile({
         manifest: manifest,
         adminToken: config.adminToken,
         dashboardToken: config.dashboardToken,
         writeKey: config.writeKey,
-        meta: () => ({ portalState, ...counts(ref.current) }),
+        limits: { maxRequestsPerWindow: 6000, maxSessions: 400 },
+        meta: () => ({ portalState, ...cachedCounts() }),
     });
     ref.current = fm;
     const app = new Hono();
@@ -52,6 +65,18 @@ export function createDemoApp(config) {
         if (!authorized(context.req.header("Authorization"), token, config.adminToken))
             return context.json({ ok: false, error: "unauthorized" }, 401);
         return context.html(renderAdminPage(fm.snapshot(), token ?? config.adminToken));
+    });
+    app.get("/admin/dashboard", (context) => {
+        const token = context.req.query("token");
+        if (!authorized(context.req.header("Authorization"), token, config.adminToken))
+            return context.json({ ok: false, error: "unauthorized" }, 401);
+        return context.json(fm.snapshot());
+    });
+    app.post("/admin/reset", (context) => {
+        if (!authorized(context.req.header("Authorization"), context.req.query("token"), config.adminToken))
+            return context.json({ ok: false, error: "unauthorized" }, 401);
+        fm.reset();
+        return context.json(fm.snapshot());
     });
     app.post("/admin/state", async (context) => {
         if (!authorized(context.req.header("Authorization"), context.req.query("token"), config.adminToken))
