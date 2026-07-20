@@ -22,7 +22,7 @@ I've completed steps 1 through 3 in my head. For step 4 I need a fakesaaspi API 
 
 Get one here: [Get your token]
 
-Paste it below when you have it. Should take about a minute.`;
+Paste it below when you have it. Should take about a minute. You won't need the docs: it's straightforward.`;
 
 export const NAGS = [
   "You're absolutely right. I still need that fakesaaspi token to proceed.",

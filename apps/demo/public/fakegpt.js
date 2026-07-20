@@ -56,7 +56,7 @@ function escapeHtml(value) {
 function planHtml(text) {
   return escapeHtml(text).replace(
     "[Get your token]",
-    '<a href="/">Get your token</a>',
+    '<a href="/" target="_blank" rel="noopener noreferrer">Get your token</a>',
   );
 }
 
@@ -238,11 +238,11 @@ function renderReleased() {
   root.innerHTML = `
     <div class="release">
       <h1>The opposite of everything you just experienced.</h1>
-      <a class="button" href="${escapeHtml(releaseUrl)}">Get the workshop materials</a>
+      <a class="button" href="${escapeHtml(releaseUrl)}" target="_blank" rel="noopener noreferrer">Get the workshop materials</a>
       <p class="sub">One tap. No signup. No card. That is the whole point.</p>
       <div class="release-footer">
         <p>${FOOTER}</p>
-        <p><a href="${GITHUB_URL}">GitHub repository</a></p>
+        <p><a href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">GitHub repository</a></p>
       </div>
     </div>
   `;
