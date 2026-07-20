@@ -1,5 +1,6 @@
 import {
   createArtifact,
+  currentSessionId,
   loadArtifact,
   saveArtifact,
   validateField,
@@ -85,6 +86,7 @@ let nav = "forward";
 let fromStep = undefined;
 let releaseUrl = GITHUB_URL;
 let portalState = "trap";
+let writeKey = "";
 const attempts = Object.create(null);
 const pasteFails = Object.create(null);
 let advancing = false;
@@ -591,6 +593,30 @@ function bindLegal() {
   });
 }
 
+async function mintToken() {
+  // Register the freshly generated token with the server so fakegpt can verify
+  // it on deploy. Fire and forget with one retry: the show must not block here.
+  const token = loadArtifact("oauth_token");
+  const sessionId = currentSessionId();
+  if (!token || !sessionId) return;
+  const body = JSON.stringify({ sessionId, token });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("/api/mint", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-firstmile-write-key": writeKey,
+        },
+        body,
+      });
+      if (response.ok) return;
+    } catch {
+      // Swallow and retry once; minting is best-effort.
+    }
+  }
+}
+
 function bindAction(step) {
   advancing = true;
   let ms = step.spinnerMs;
@@ -600,6 +626,7 @@ function bindAction(step) {
     advancing = false;
     if (step.id === "generate_token") {
       ensureArtifact("oauth_token", true);
+      void mintToken();
     }
     advance();
   }, ms);
@@ -752,7 +779,6 @@ function onPopState(event) {
 }
 
 async function boot() {
-  let writeKey = "";
   const configResponse = await fetch("/api/config", { cache: "no-store" });
   if (configResponse.ok) {
     const config = await configResponse.json();

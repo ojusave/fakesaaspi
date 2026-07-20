@@ -121,6 +121,18 @@ export function loadArtifact(name) {
   return localStorage.getItem(artifactKey(name));
 }
 
+/**
+ * Reads the tracker's current session id from localStorage. Both the flow and
+ * fakegpt init the tracker with app "fakesaaspi", so the prefix is fixed.
+ */
+export function currentSessionId() {
+  try {
+    return JSON.parse(localStorage.getItem("fm:fakesaaspi:sid") ?? "null");
+  } catch {
+    return null;
+  }
+}
+
 export function formatDuration(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(total / 60);
