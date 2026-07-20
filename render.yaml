@@ -1,25 +1,29 @@
-services:
-  - type: web
-    name: firstmile-sidecar
-    runtime: node
-    plan: starter
-    buildCommand: npm ci && npm run build
-    startCommand: node packages/kit/dist/sidecar.js
-    healthCheckPath: /healthz
-    autoDeployTrigger: off
-    envVars:
-      - key: NODE_VERSION
-        value: "20"
-      - key: ADMIN_TOKEN
-        generateValue: true
-      - key: DASHBOARD_TOKEN
-        generateValue: true
-      - key: WRITE_KEY
-        generateValue: true
-      - key: MANIFEST_JSON
-        sync: false
-      - key: ALLOWED_ORIGINS
-        sync: false
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 
 previews:
   generation: off
+
+projects:
+  - name: fakesaaspi
+    environments:
+      - name: production
+        services:
+          - type: web
+            name: fakesaaspi
+            runtime: node
+            plan: starter
+            region: oregon
+            buildCommand: npm ci && npm run build --workspace @firstmile/sdk && npm run build --workspace @firstmile/demo
+            startCommand: npm start --workspace @firstmile/demo
+            healthCheckPath: /healthz
+            envVars:
+              - key: NODE_VERSION
+                value: "20"
+              - key: ADMIN_TOKEN
+                generateValue: true
+              - key: DASHBOARD_TOKEN
+                generateValue: true
+              - key: WRITE_KEY
+                generateValue: true
+              - key: RELEASE_URL
+                value: https://github.com/ojusave/fakesaaspi

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/favicon.svg">
+  <title>fakesaaspi</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #fafafa; --card: #ffffff; --border: #e4e4e7; --input-border: #d4d4d8;
+      --text: #18181b; --muted: #71717a; --accent: #2563eb; --error: #dc2626; --error-bg: #fef2f2;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101014; --card: #18181c; --border: #27272a; --input-border: #27272a;
+        --text: #e4e4e7; --muted: #a1a1aa; --error: #f87171; --error-bg: #3f1515;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; padding: 24px 18px; background: var(--bg); color: var(--text); }
+    #app { width: min(100%, 420px); margin: 0 auto; display: flex; flex-direction: column; min-height: calc(100vh - 48px); }
+    main { width: 100%; margin: auto 0; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+    .dash-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: -8px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .dash-muted { color: var(--muted); }
+    .empty-dash { padding: 28px 8px 8px; text-align: center; }
+    .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+    h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+    .helper, .warning, .sub { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+    label { display: block; margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+    input[type="text"], textarea { width: 100%; height: 48px; border: 1px solid var(--input-border); border-radius: 8px; padding: 12px; background: var(--card); color: var(--text); font: inherit; font-size: 16px; }
+    textarea { height: auto; min-height: 96px; resize: vertical; }
+    input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button, .button { display: inline-flex; width: 100%; height: 48px; align-items: center; justify-content: center; margin-top: 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .error { min-height: 1.25em; margin: 10px 0 0; font-size: 14px; color: var(--error); }
+    .error.json { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--error-bg); border-radius: 8px; padding: 12px; white-space: pre-wrap; }
+    .notice { margin: 0 0 14px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg); }
+    pre.keys { margin: 0 0 12px; padding: 14px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .choices { display: grid; gap: 8px; margin: 12px 0; }
+    .choice, .agreement { display: flex; gap: 12px; align-items: flex-start; min-height: 44px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .choice input, .agreement input { width: 22px; height: 22px; margin-top: 1px; flex: 0 0 auto; }
+    .choice small { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; }
+    .legal { height: 45vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--bg); font-size: 14px; line-height: 1.55; }
+    .legal h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+    .legal p { margin: 0 0 12px; color: var(--muted); }
+    .spinner { width: 24px; height: 24px; margin: 24px auto 16px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    .status { margin: 0; text-align: center; font-size: 14px; color: var(--muted); }
+    .http-ok { margin: 0 0 8px; font-weight: 700; color: #16a34a; }
+    .linkish { display: inline-block; margin-top: 12px; color: var(--accent); font-size: 14px; background: none; border: 0; height: auto; width: auto; padding: 0; cursor: pointer; text-decoration: underline; }
+    footer { padding: 20px 8px 0; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+    footer p { margin: 0 0 8px; }
+    footer a { color: var(--muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="/tracker.min.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

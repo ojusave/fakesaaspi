@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="/favicon.svg">
+  <title>fakesaaspi live</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #0b0d12;
+      --card: #151922;
+      --border: #2a3140;
+      --text: #eef1f6;
+      --muted: #9aa3b5;
+      --accent: #3b82f6;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 20% -10%, #1a2450 0%, transparent 55%), var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 28px 36px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { margin: 0; font-size: 28px; font-weight: 700; }
+    .sub { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+    .stats { display: flex; gap: 18px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+    .stats strong { color: var(--text); font-size: 22px; display: block; }
+    main { padding: 24px 36px 40px; }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card);
+      padding: 18px 18px 16px;
+      min-height: 148px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card.shipped {
+      border-color: rgba(52, 211, 153, 0.65);
+      background: linear-gradient(180deg, #13261f 0%, var(--card) 55%);
+    }
+    .card.shipped .field { color: var(--ok); }
+    .card.closed, .card.idle { opacity: 0.72; }
+    .name { font-size: 20px; font-weight: 700; line-height: 1.2; }
+    .page { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .field { font-size: 17px; color: var(--accent); font-weight: 600; line-height: 1.25; }
+    .meta { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .card.active .dot { background: var(--ok); }
+    .card.shipped .dot { background: var(--ok); }
+    .card.idle .dot { background: var(--warn); }
+    .card.closed .dot { background: var(--bad); }
+    #empty {
+      display: none;
+      padding: 80px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 20px;
+    }
+    #freshness { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+    #freshness.stale { color: var(--bad); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>fakesaaspi live</h1>
+      <p class="sub">Every attendee, one card. Names are fake. Frustration is real.</p>
+    </div>
+    <div class="stats">
+      <div><strong id="count">0</strong>people</div>
+      <div><strong id="active">0</strong>active</div>
+      <div><strong id="shipped">0</strong>shipped</div>
+      <div id="freshness">connecting</div>
+    </div>
+  </header>
+  <main>
+    <div id="empty">Waiting for the first phone to join...</div>
+    <div id="grid"></div>
+  </main>
+  <script>
+    const grid = document.getElementById("grid");
+    const empty = document.getElementById("empty");
+    const freshness = document.getElementById("freshness");
+    let lastOk = 0;
+
+    function card(person) {
+      const el = document.createElement("article");
+      el.className = `card ${person.status}`;
+      el.innerHTML = `
+        <div class="status"><span class="dot"></span>${person.status}</div>
+        <div class="name"></div>
+        <div class="page"></div>
+        <div class="field"></div>
+        <div class="meta">
+          <span>Here: <strong class="step-time"></strong></span>
+          <span>Total: <strong class="total-time"></strong></span>
+        </div>
+      `;
+      el.querySelector(".name").textContent = person.name;
+      el.querySelector(".page").textContent = `Page: ${person.page || "-"}`;
+      el.querySelector(".field").textContent = `Field: ${person.field || "-"}`;
+      el.querySelector(".step-time").textContent = person.stepLabel;
+      el.querySelector(".total-time").textContent = person.totalLabel;
+      return el;
+    }
+
+    async function tick() {
+      try {
+        const response = await fetch("/api/people", { cache: "no-store" });
+        if (!response.ok) throw new Error("bad status");
+        const data = await response.json();
+        lastOk = Date.now();
+        freshness.classList.remove("stale");
+        freshness.textContent = "live";
+
+        const people = data.people || [];
+        document.getElementById("count").textContent = String(people.length);
+        document.getElementById("active").textContent = String(
+          people.filter((p) => p.status === "active").length,
+        );
+        document.getElementById("shipped").textContent = String(
+          people.filter((p) => p.status === "shipped").length,
+        );
+
+        empty.style.display = people.length === 0 ? "block" : "none";
+        grid.replaceChildren(...people.map(card));
+      } catch {
+        if (Date.now() - lastOk > 3000) {
+          freshness.classList.add("stale");
+          freshness.textContent = "connection lost";
+        }
+      }
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

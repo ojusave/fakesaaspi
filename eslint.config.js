@@ -53,5 +53,13 @@ export default tseslint.config(
       sourceType: "module",
       globals: globals.browser,
     },
+  },
+  {
+    files: ["apps/demo/src/**/*.js", "apps/demo/*.mjs", "apps/demo/test/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: globals.node,
+    },
   }
 );

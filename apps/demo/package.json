@@ -2,5 +2,19 @@
   "name": "@firstmile/demo",
   "private": true,
   "version": "0.0.0",
-  "description": "Reserved private workspace for the Firstmile workshop demo consumer"
+  "description": "FakeSaaSPI workshop onboarding demo",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/server.js",
+    "test": "vitest run --config vitest.config.js"
+  },
+  "dependencies": {
+    "@firstmile/sdk": "0.1.0",
+    "@hono/node-server": "^2.0.10",
+    "hono": "^4.12.30"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }
