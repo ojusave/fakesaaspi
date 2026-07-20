@@ -127,3 +127,25 @@ export function formatDuration(ms) {
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/**
+ * Resolves the crowd rank line "#N of M." once ingest meta reports a shipped
+ * count past the baseline, or "" if it does not arrive within timeoutMs.
+ * getMeta returns the latest ingest meta (or null) on each poll.
+ */
+export async function awaitRankLine(getMeta, baselineShipped, timeoutMs = 2500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const meta = getMeta();
+    if (
+      meta &&
+      typeof meta.shipped === "number" &&
+      typeof meta.started === "number" &&
+      (baselineShipped === null || meta.shipped !== baselineShipped)
+    ) {
+      return `#${meta.shipped} of ${meta.started}.`;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return "";
+}

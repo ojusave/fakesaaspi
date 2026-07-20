@@ -1,6 +1,5 @@
 import {
   createArtifact,
-  formatDuration,
   loadArtifact,
   saveArtifact,
   validateField,
@@ -86,8 +85,6 @@ let nav = "forward";
 let fromStep = undefined;
 let releaseUrl = GITHUB_URL;
 let portalState = "trap";
-let lastMeta = null;
-let flowStartedAt = Date.now();
 const attempts = Object.create(null);
 const pasteFails = Object.create(null);
 let advancing = false;
@@ -351,7 +348,6 @@ function renderAction(step) {
   if (step.id === "create_account") text = "Setting up your workspace...";
   else if (step.id === "create_app") text = "Provisioning your application...";
   else if (step.id === "generate_token") text = "Minting token...";
-  else if (step.id === "send_request") text = "Sending...";
   const body = `
     <div class="spinner" aria-hidden="true"></div>
     <p class="status">${text}</p>
@@ -412,13 +408,10 @@ function renderPaste(step) {
   `;
 }
 
-function renderSuccess(rankLine) {
+function renderReturnToFakegpt() {
   return `
-    <p class="http-ok">200 OK</p>
-    <pre class="keys">{"message":"hello, you actually shipped"}</pre>
-    <h1>You shipped.</h1>
-    ${rankLine ? `<p class="sub">${rankLine}</p>` : ""}
-    <p class="sub">Look up at the screen.</p>
+    <h1>Token minted. Keep it safe. Return to fakegpt to deploy.</h1>
+    <a class="button" id="back-to-fakegpt" href="/fakegpt">Back to fakegpt</a>
   `;
 }
 
@@ -601,7 +594,6 @@ function bindLegal() {
 function bindAction(step) {
   advancing = true;
   let ms = step.spinnerMs;
-  if (step.id === "send_request") ms = 800;
   if (typeof ms !== "number") ms = 1000;
 
   window.setTimeout(() => {
@@ -667,30 +659,14 @@ function bindPaste(step) {
   });
 }
 
-async function bindSuccess() {
-  history.replaceState({ stepId: "response", terminal: true }, "", "#response");
-  const priorShipped =
-    lastMeta && typeof lastMeta.shipped === "number" ? lastMeta.shipped : null;
-  fm()?.complete("response");
-  fm()?.shipped();
-
-  let rankLine = "";
-  const deadline = Date.now() + 2500;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 100));
-    if (
-      lastMeta &&
-      typeof lastMeta.shipped === "number" &&
-      typeof lastMeta.started === "number" &&
-      (priorShipped === null || lastMeta.shipped !== priorShipped)
-    ) {
-      rankLine = `#${lastMeta.shipped} of ${lastMeta.started}. Total time: ${formatDuration(Date.now() - flowStartedAt)}.`;
-      break;
-    }
-  }
-
-  const root = document.getElementById("app");
-  root.innerHTML = shell(renderSuccess(rankLine));
+function bindReturnToFakegpt() {
+  // The flow ends here. Shipping happens back on /fakegpt after the token is
+  // pasted into the deploy prompt, so this only records the hand-off click.
+  const link = document.getElementById("back-to-fakegpt");
+  if (!link) return;
+  link.addEventListener("click", () => {
+    fm()?.complete("return_to_fakegpt");
+  });
 }
 
 function bindDashboard() {
@@ -705,7 +681,9 @@ function bindDashboard() {
 function bind() {
   const step = currentStep();
   if (!step) return;
-  if (step.type === "hero") {
+  if (step.id === "return_to_fakegpt") {
+    bindReturnToFakegpt();
+  } else if (step.type === "hero") {
     document.getElementById("primary").addEventListener("click", () => advance());
   } else if (isSignupStep(step)) {
     bindSignup();
@@ -723,12 +701,11 @@ function bind() {
     bindCopy(step);
   } else if (step.type === "paste") {
     bindPaste(step);
-  } else if (step.type === "success") {
-    void bindSuccess();
   }
 }
 
 function renderBody(step) {
+  if (step.id === "return_to_fakegpt") return renderReturnToFakegpt();
   if (isSignupStep(step)) return renderSignup();
   if (step.id === "app_name" && !creatingApp) return renderAppsDashboard();
   switch (step.type) {
@@ -746,8 +723,6 @@ function renderBody(step) {
       return renderCopy(step);
     case "paste":
       return renderPaste(step);
-    case "success":
-      return renderSuccess("");
     default:
       return `<p>Unknown step type.</p>`;
   }
@@ -787,7 +762,11 @@ async function boot() {
 
   const manifestResponse = await fetch("/api/manifest", { cache: "no-store" });
   manifest = await manifestResponse.json();
-  steps = manifest.steps;
+  // The fakegpt and deploy groups render on /fakegpt, not in this flow. This
+  // page runs welcome -> keys and hands back to fakegpt at return_to_fakegpt.
+  steps = manifest.steps.filter(
+    (step) => step.group !== "fakegpt" && step.group !== "deploy",
+  );
   indexById = new Map(steps.map((step, i) => [step.id, i]));
 
   await fm()?.init({
@@ -797,7 +776,6 @@ async function boot() {
     writeKey,
   });
   fm()?.onMeta((meta) => {
-    lastMeta = meta;
     if (meta && meta.portalState === "release" && portalState !== "release") {
       portalState = "release";
       showRelease();
@@ -817,7 +795,6 @@ async function boot() {
   history.replaceState({ stepId: steps[stepIndex].id }, "", `#${steps[stepIndex].id}`);
   nav = "forward";
   fromStep = undefined;
-  flowStartedAt = Date.now();
   render();
 }
 

@@ -46,6 +46,7 @@ const NOUNS = [
 
 /** @type {Record<string, { page: string; field: string }>} */
 const STEP_INFO = {
+  fakegpt_chat: { page: "fakegpt", field: "Chatting" },
   welcome: { page: "Welcome", field: "Get started" },
   name: { page: "Create account", field: "Full name" },
   company: { page: "Create account", field: "Company name" },
@@ -62,10 +63,9 @@ const STEP_INFO = {
   copy_keys: { page: "Keys", field: "Copy keys" },
   paste_keys: { page: "Keys", field: "Paste keys" },
   generate_token: { page: "Keys", field: "Mint token" },
-  copy_token: { page: "API call", field: "Copy token" },
-  paste_token: { page: "API call", field: "Paste token" },
-  send_request: { page: "API call", field: "Send request" },
-  response: { page: "Done", field: "Response" },
+  copy_token: { page: "Keys", field: "Copy token" },
+  return_to_fakegpt: { page: "Keys", field: "Back to fakegpt" },
+  fakegpt_deploy: { page: "fakegpt", field: "Deploy" },
 };
 
 const namesBySession = new Map();
@@ -147,7 +147,6 @@ export function buildPeople(fm, now = Date.now()) {
       }
       if (event.type === "shipped") {
         row.shipped = true;
-        row.step = "response";
       }
       if (event.type === "bye") {
         row.closed = true;
@@ -157,9 +156,9 @@ export function buildPeople(fm, now = Date.now()) {
 
   const people = [...sessions.values()]
     .map((row) => {
-      // Success screen counts as shipped even before the shipped event flushes.
-      const shipped = row.shipped || row.step === "response";
-      const step = shipped ? "response" : row.step;
+      // Shipping is driven by the shipped event, which fakegpt fires on deploy.
+      const shipped = row.shipped;
+      const step = row.step;
       const info = infoFor(step);
       const page = shipped ? "Shipped" : info.page;
       const field = shipped ? "Done" : info.field;

@@ -1,7 +1,8 @@
 export const manifest = {
-    version: "2026-07-19a",
-    groups: ["welcome", "signup", "create_app", "keys", "api_call"],
+    version: "2026-07-20a",
+    groups: ["fakegpt", "welcome", "signup", "create_app", "keys", "deploy"],
     steps: [
+        { id: "fakegpt_chat", group: "fakegpt", type: "hero" },
         { id: "welcome", group: "welcome", type: "hero" },
         { id: "name", group: "signup", type: "field" },
         { id: "company", group: "signup", type: "field" },
@@ -18,9 +19,8 @@ export const manifest = {
         { id: "copy_keys", group: "keys", type: "copy", artifact: "app_keys" },
         { id: "paste_keys", group: "keys", type: "paste", expects: "app_keys" },
         { id: "generate_token", group: "keys", type: "action", spinnerMs: 3000, produces: "oauth_token" },
-        { id: "copy_token", group: "api_call", type: "copy", artifact: "oauth_token" },
-        { id: "paste_token", group: "api_call", type: "paste", expects: "oauth_token" },
-        { id: "send_request", group: "api_call", type: "action", request: "GET /v1/hello" },
-        { id: "response", group: "api_call", type: "success" }
+        { id: "copy_token", group: "keys", type: "copy", artifact: "oauth_token" },
+        { id: "return_to_fakegpt", group: "keys", type: "hero" },
+        { id: "fakegpt_deploy", group: "deploy", type: "paste", expects: "oauth_token" }
     ]
 };
