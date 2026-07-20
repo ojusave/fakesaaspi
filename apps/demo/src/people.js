@@ -83,7 +83,7 @@ function nameFor(sessionId) {
   const existing = namesBySession.get(sessionId);
   if (existing) return existing;
   const h = hash(sessionId);
-  const base = `${ADJECTIVES[h % ADJECTIVES.length]} ${NOUNS[(h >> 8) % NOUNS.length]}`;
+  const base = `${ADJECTIVES[h % ADJECTIVES.length]} ${NOUNS[(h >>> 8) % NOUNS.length]}`;
   // On collision, append the smallest free numeral ("Chaotic Pickle 2").
   let name = base;
   let suffix = 2;
@@ -133,7 +133,9 @@ export function buildPeople(fm, now = Date.now()) {
           stepEnteredAt: event.ts,
           lastSeen: event.ts,
           shipped: false,
+          shippedAt: null,
           closed: false,
+          closedAt: null,
         };
         sessions.set(event.sessionId, row);
       }
@@ -141,15 +143,21 @@ export function buildPeople(fm, now = Date.now()) {
       if (event.type === "session_start" && event.resumed !== true) {
         row.startedAt = event.ts;
       }
+      if (event.type === "session_start") {
+        row.closed = false;
+        row.closedAt = null;
+      }
       if (event.type === "page_view" && typeof event.step === "string") {
         row.step = event.step;
         row.stepEnteredAt = event.ts;
       }
       if (event.type === "shipped") {
         row.shipped = true;
+        row.shippedAt ??= event.ts;
       }
       if (event.type === "bye") {
         row.closed = true;
+        row.closedAt = event.ts;
       }
     }
   }
@@ -162,8 +170,9 @@ export function buildPeople(fm, now = Date.now()) {
       const info = infoFor(step);
       const page = shipped ? "Shipped" : info.page;
       const field = shipped ? "Done" : info.field;
-      const totalMs = Math.max(0, now - (row.startedAt || now));
-      const stepMs = Math.max(0, now - (row.stepEnteredAt || row.startedAt || now));
+      const stoppedAt = row.shippedAt ?? (row.closed ? row.closedAt : null) ?? now;
+      const totalMs = Math.max(0, stoppedAt - (row.startedAt || stoppedAt));
+      const stepMs = Math.max(0, stoppedAt - (row.stepEnteredAt || row.startedAt || stoppedAt));
       let status = "active";
       if (shipped) status = "shipped";
       else if (row.closed) status = "closed";
