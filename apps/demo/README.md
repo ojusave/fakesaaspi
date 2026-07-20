@@ -17,8 +17,14 @@ RELEASE_URL=https://github.com/ojusave/fakesaaspi \
 npm start --workspace @firstmile/demo
 ```
 
-Open `http://localhost:10000`. The projector is at `/present`. The admin page is at `/admin?token=admin-secret`.
+Open `http://localhost:10000`. The live entry point is `/fakegpt` (the QR code target), the projector is at `/present`, and the admin page is at `/admin?token=admin-secret`.
+
+## fakegpt
+
+`/fakegpt` is a fake AI assistant and the entry point of the experience. It sends participants to the onboarding flow to mint a token, then verifies that token via `POST /api/deploy` and marks the session shipped. It shares the tracker session with the flow (same origin and localStorage), so the whole loop is one funnel built from existing manifest steps.
+
+`packages/kit` is owned by [ojusave/firstmile](https://github.com/ojusave/firstmile) and vendored here via `scripts/sync-kit.sh`. Do not hand-edit it; a drift check in `npm run verify` enforces this.
 
 ## Admin reset
 
-The admin page has a RESET button (`POST /admin/reset`, admin-token gated) that clears the in-memory sessions and events so `/present` starts empty between runs. This only wipes in-memory state: the stdout JSONL log (each accepted event is written to stdout, mirrored in the Render logs) is unaffected and remains the archive of the session.
+The admin page has a RESET button (`POST /admin/reset`, admin-token gated) that clears the in-memory sessions, events, and minted tokens so `/present` starts empty between runs. This only wipes in-memory state: the stdout JSONL log (each accepted event is written to stdout, mirrored in the Render logs) is unaffected and remains the archive of the session.

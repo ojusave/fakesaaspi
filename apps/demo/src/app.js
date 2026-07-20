@@ -179,6 +179,7 @@ export function createDemoApp(config) {
     app.get("/", (c) => c.html(readFileSync(join(publicRoot, "index.html"), "utf8")));
     app.get("/fakegpt", (c) => c.html(readFileSync(join(publicRoot, "fakegpt.html"), "utf8")));
     app.get("/fakegpt.js", (c) => c.body(readFileSync(join(publicRoot, "fakegpt.js"), "utf8"), 200, { "Content-Type": "text/javascript" }));
+    app.get("/fakegpt-machine.js", (c) => c.body(readFileSync(join(publicRoot, "fakegpt-machine.js"), "utf8"), 200, { "Content-Type": "text/javascript" }));
     app.get("/app.js", (c) => c.body(readFileSync(join(publicRoot, "app.js"), "utf8"), 200, { "Content-Type": "text/javascript" }));
     app.get("/flow.js", (c) => c.body(readFileSync(join(publicRoot, "flow.js"), "utf8"), 200, { "Content-Type": "text/javascript" }));
     app.get("/favicon.svg", (c) => c.body(readFileSync(join(publicRoot, "favicon.svg"), "utf8"), 200, { "Content-Type": "image/svg+xml" }));

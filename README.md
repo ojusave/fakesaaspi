@@ -2,7 +2,7 @@
 
 A deliberately frustrating API onboarding exercise for workshops about the developer first mile.
 
-[Try the participant flow](https://fakesaaspi.onrender.com/) · [Open the projector](https://fakesaaspi.onrender.com/present) · [View the repository](https://github.com/ojusave/fakesaaspi)
+[Start at fakegpt](https://fakesaaspi.onrender.com/fakegpt) · [Try the participant flow](https://fakesaaspi.onrender.com/) · [Open the projector](https://fakesaaspi.onrender.com/present) · [View the repository](https://github.com/ojusave/fakesaaspi)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fojusave%2Ffakesaaspi)
 
@@ -30,12 +30,16 @@ A deliberately frustrating API onboarding exercise for workshops about the devel
 
 | Route | Audience | Behavior |
 | --- | --- | --- |
+| `/fakegpt` | Participant | Entry point: a fake AI assistant that sends participants through the flow to get a token, then deploys it |
 | `/` | Participant | Runs the fake onboarding flow |
 | `/present` | Presenter or audience display | Shows public aggregate workshop progress |
 | `/healthz` | Operator | Returns `{"ok":true}` when the service is ready |
-| `/admin?token=<ADMIN_TOKEN>` | Presenter | Controls trap or release state and requires the admin token |
+| `/admin?token=<ADMIN_TOKEN>` | Presenter | Controls trap or release state, and has a RESET button; requires the admin token |
+| `/admin/reset` | Presenter | `POST`, admin-token gated: clears in-memory sessions, events, and minted tokens so `/present` starts empty |
 
-The production app is [fakesaaspi.onrender.com](https://fakesaaspi.onrender.com/). Keep `ADMIN_TOKEN` out of slides, browser code, screenshots, and shared URLs.
+The QR code entry point for the live session is `/fakegpt`. The production app is [fakesaaspi.onrender.com](https://fakesaaspi.onrender.com/). Keep `ADMIN_TOKEN` out of slides, browser code, screenshots, and shared URLs.
+
+`/admin/reset` only wipes in-memory state. The stdout JSONL log (each accepted event is mirrored in the Render logs) is unaffected and remains the archive.
 
 ## Deploy on Render
 
@@ -98,8 +102,8 @@ npm run verify
 
 | Path | Purpose |
 | --- | --- |
-| `apps/demo` | FakeSaaSPI participant flow, projector, admin controls, and server |
-| `packages/kit` | Firstmile browser SDK, collector, dashboard, and integration helpers |
+| `apps/demo` | FakeSaaSPI participant flow, fakegpt, projector, admin controls, and server |
+| `packages/kit` | Vendored Firstmile kit: owned by [ojusave/firstmile](https://github.com/ojusave/firstmile), synced via `scripts/sync-kit.sh` |
 | `examples/plain-html` | Minimal browser integration example |
 | `render.yaml` | Render Blueprint for the project, environment, service, secrets, and health check |
 
@@ -123,6 +127,8 @@ After each deploy, verify `/healthz`, `/`, and `/present`. Confirm that `/admin`
 ## Contributing and license
 
 Open a focused pull request against `main`. Include the tests and live routes you exercised.
+
+`packages/kit` is owned by [ojusave/firstmile](https://github.com/ojusave/firstmile); this repo vendors it via `scripts/sync-kit.sh` and must never be hand-edited here (a drift check in `npm run verify` enforces this). Make kit changes upstream, land them on firstmile `main`, then run the sync script.
 
 This repository has no public license. Source is visible for review, but no reuse rights are granted until a license is selected.
 

@@ -1,50 +1,16 @@
 import { awaitRankLine, currentSessionId } from "./flow.js";
+import {
+  classify,
+  initialState,
+  reduceNonToken,
+  reduceToken,
+} from "./fakegpt-machine.js";
 
 const FOOTER =
   "A parody built for a DevRelCon workshop. Nothing you type is stored or transmitted.";
 const GITHUB_URL = "https://github.com/ojusave/fakesaaspi";
 const DISCLAIMER = "fakegpt cannot make mistakes.";
 
-const OPENING =
-  "Hi. I'm fakegpt. Describe what you want to build and I'll handle the rest.";
-
-const PLAN = `You're absolutely right. This is a great idea, and honestly, a little overdue.
-
-Entering plan mode.
-
-The Plan
-1. Scaffold the project
-2. Wire up the core logic
-3. Add the integrations
-4. Deploy
-
-I've completed steps 1 through 3 in my head. For step 4 I need a fakesaaspi API token.
-
-Get one here: [Get your token]
-
-Paste it below when you have it. Should take about a minute.`;
-
-const NAGS = [
-  "You're absolutely right. I still need that fakesaaspi token to proceed.",
-  "You're absolutely right, and I've added it to the plan. The plan still needs a fakesaaspi token.",
-  "Great question. You're absolutely right to ask. Unrelated: the token.",
-  "You're absolutely right that I should be able to do that for you. I cannot. The token, when you're ready.",
-];
-
-const INVALID_FIRST =
-  "You're absolutely right that this looks like a token. The API disagrees. Check the final screen on fakesaaspi and try again.";
-const INVALID_LATER =
-  "You're absolutely right to try again. Still no. Are you sure you copied the right thing?";
-
-const SUCCESS = `Token verified. You're absolutely right, this one's real.
-
-Deploying.
-
-Build complete. Your app is live.
-
-You shipped. That took you {elapsed}. Hold that thought.`;
-
-const TOKEN_RE = /^fso_[0-9a-f]{32}$/;
 const fm = () => window.firstmile;
 
 let writeKey = "";
@@ -68,12 +34,7 @@ function loadState() {
   } catch {
     // fall through to a fresh conversation
   }
-  return {
-    phase: "fresh",
-    transcript: [{ role: "bot", text: OPENING }],
-    nagIndex: 0,
-    attempt: 0,
-  };
+  return initialState();
 }
 
 function persist() {
@@ -97,15 +58,6 @@ function planHtml(text) {
     "[Get your token]",
     '<a href="/">Get your token</a>',
   );
-}
-
-function formatElapsed(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  const m = `${minutes} minute${minutes === 1 ? "" : "s"}`;
-  const s = `${seconds} second${seconds === 1 ? "" : "s"}`;
-  return `${m} and ${s}`;
 }
 
 function sleep(ms) {
@@ -158,11 +110,6 @@ async function botSay(text, kind) {
   return bubble;
 }
 
-function isTokenAttempt(text) {
-  const t = text.trim();
-  return TOKEN_RE.test(t) || (t.length > 20 && !/\s/.test(t));
-}
-
 async function verifyToken(token) {
   try {
     const response = await fetch("/api/deploy", {
@@ -197,15 +144,15 @@ async function handleTokenAttempt(token) {
     const baseline =
       lastMeta && typeof lastMeta.shipped === "number" ? lastMeta.shipped : null;
     fm()?.shipped();
-    state.phase = "shipped";
+    const { state: next, bot } = reduceToken(state, result);
+    state.phase = next.phase;
     setInputEnabled(false);
-    const text = SUCCESS.replace("{elapsed}", formatElapsed(result.elapsedMs));
-    const bubble = await botSay(text);
-    pushTranscript("bot", text);
+    const bubble = await botSay(bot.text);
+    pushTranscript("bot", bot.text);
     // Append the crowd rank on its own line if it arrives in time.
     const rank = await awaitRankLine(() => lastMeta, baseline, 2500);
     if (rank) {
-      const withRank = `${text}\n${rank}`;
+      const withRank = `${bot.text}\n${rank}`;
       bubble.textContent = withRank;
       state.transcript[state.transcript.length - 1].text = withRank;
       scrollToBottom();
@@ -214,11 +161,11 @@ async function handleTokenAttempt(token) {
     return;
   }
 
-  state.attempt += 1;
+  const { state: next, bot } = reduceToken(state, result);
+  state.attempt = next.attempt;
   fm()?.error("fakegpt_deploy", "invalid_grant", state.attempt);
-  const text = state.attempt === 1 ? INVALID_FIRST : INVALID_LATER;
-  await botSay(text);
-  pushTranscript("bot", text);
+  await botSay(bot.text);
+  pushTranscript("bot", bot.text);
   persist();
 }
 
@@ -232,20 +179,15 @@ async function handleMessage(raw) {
   pushTranscript("user", text);
 
   try {
-    if (state.phase === "fresh") {
-      fm()?.view("fakegpt_chat");
-      state.phase = "awaiting_token";
-      await botSay(PLAN, "plan");
-      pushTranscript("bot", PLAN, "plan");
-      persist();
-    } else if (isTokenAttempt(text)) {
+    if (classify(state, text) === "token") {
       await handleTokenAttempt(text);
     } else {
       fm()?.view("fakegpt_chat");
-      const nag = NAGS[state.nagIndex % NAGS.length];
-      state.nagIndex += 1;
-      await botSay(nag);
-      pushTranscript("bot", nag);
+      const { state: next, bot } = reduceNonToken(state);
+      state.phase = next.phase;
+      state.nagIndex = next.nagIndex;
+      await botSay(bot.text, bot.kind);
+      pushTranscript("bot", bot.text, bot.kind);
       persist();
     }
   } finally {
