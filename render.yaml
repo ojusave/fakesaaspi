@@ -13,9 +13,27 @@ projects:
             runtime: node
             plan: free
             region: oregon
+            # Collector state lives in-process, so keep a single instance:
+            # multiple instances would each hold a partial view of the funnel.
+            numInstances: 1
             buildCommand: npm ci && npm run build --workspace @firstmile/sdk && npm run build --workspace @firstmile/demo
             startCommand: npm start --workspace @firstmile/demo
             healthCheckPath: /healthz
+            # Only rebuild when code or dependencies change; docs and tests do not ship.
+            buildFilter:
+              paths:
+                - apps/**
+                - packages/**
+                - scripts/**
+                - package.json
+                - package-lock.json
+                - .firstmile-kit-tree
+              ignoredPaths:
+                - "**/*.md"
+                - "**/test/**"
+                - "**/*.test.*"
+                - .github/**
+                - examples/**
             envVars:
               - key: NODE_VERSION
                 value: "20"
@@ -27,3 +45,12 @@ projects:
                 generateValue: true
               - key: RELEASE_URL
                 value: https://github.com/ojusave/fakesaaspi
+              # Uncommenting the disk below and this PERSIST_PATH makes telemetry
+              # survive restarts; it also pins the service to one instance with
+              # stop-then-start deploys (a mounted disk cannot be shared or rolled).
+              # - key: PERSIST_PATH
+              #   value: /var/data/fakesaaspi.jsonl
+            # disk:
+            #   name: fakesaaspi-data
+            #   mountPath: /var/data
+            #   sizeGB: 1

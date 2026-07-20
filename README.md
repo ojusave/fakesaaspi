@@ -67,8 +67,11 @@ The deployed copy is independent. In-memory workshop state starts empty and does
 | `WRITE_KEY` | Yes | Browser-visible scoped key for ingestion of declared telemetry events |
 | `RELEASE_URL` | Yes | Valid absolute URL shown when the presenter releases the flow |
 | `PORT` | No | HTTP port; defaults to `10000` locally and is supplied by Render in production |
+| `PERSIST_PATH` | No | JSONL file path for disk-backed telemetry; when set, sessions and events survive restarts. Leave unset for in-memory only. Pair it with the commented disk block in `render.yaml`. |
 
 The three credentials must be non-empty and distinct. The Blueprint generates safe values when creating a new copy.
+
+Telemetry is in-memory by default, so a deploy or restart clears the funnel. To keep it across restarts, uncomment the disk block and `PERSIST_PATH` in `render.yaml`; this pins the service to a single instance with stop-then-start deploys, since a mounted disk cannot be shared or rolled. The service already runs one instance (`numInstances: 1`) because collector state lives in-process.
 
 ## Run locally
 

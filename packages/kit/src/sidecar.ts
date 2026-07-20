@@ -59,6 +59,10 @@ try {
       .split(",")
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
+    ...(process.env.PERSIST_PATH !== undefined &&
+    process.env.PERSIST_PATH.trim() !== ""
+      ? { persistPath: process.env.PERSIST_PATH }
+      : {}),
   });
   const app = new Hono();
   // Sidecar deployments share the kit's in-memory lifetime, so expose reset here too.
@@ -71,9 +75,30 @@ try {
   });
   app.route("/", firstmile.routes);
 
-  serve({ fetch: app.fetch, hostname: "0.0.0.0", port }, (info) => {
+  const server = serve({ fetch: app.fetch, hostname: "0.0.0.0", port }, (info) => {
     process.stderr.write(`firstmile sidecar listening on ${info.address}\n`);
   });
+
+  // Render sends SIGTERM on every deploy and restart. Flush the persistence
+  // append handle and stop accepting connections before the process exits.
+  let closing = false;
+  const shutdown = (signal: string): void => {
+    if (closing) return;
+    closing = true;
+    process.stderr.write(`firstmile sidecar received ${signal}, shutting down\n`);
+    firstmile.close();
+    // In production serve() returns a live server; guard so the handler is also
+    // safe when it is stubbed (e.g. under test) and there is nothing to close.
+    const closable = server as
+      | { close?: (callback?: () => void) => void }
+      | undefined;
+    if (closable === undefined || typeof closable.close !== "function") return;
+    closable.close(() => process.exit(0));
+    // Fail-safe: exit even if the server refuses to close in time.
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`${message}\n`);

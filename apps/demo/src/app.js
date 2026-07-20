@@ -58,6 +58,9 @@ export function createDemoApp(config) {
         writeKey: config.writeKey,
         limits: { maxRequestsPerWindow: 6000, maxSessions: 400 },
         meta: () => ({ portalState, ...cachedCounts() }),
+        // Optional disk-backed persistence (off unless PERSIST_PATH is set). When
+        // enabled, telemetry survives restarts; see render.yaml's disk block.
+        ...(config.persistPath ? { persistPath: config.persistPath } : {}),
     });
     ref.current = fm;
     // Server-side token registry. The flow mints here after generating a token;

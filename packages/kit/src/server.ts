@@ -1,5 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { readFileSync } from "node:fs";
+import {
+  closeSync,
+  ftruncateSync,
+  openSync,
+  readFileSync,
+  writeSync,
+} from "node:fs";
 import { Hono } from "hono";
 import { validateEventBatchDetailed } from "./event-validation.js";
 import type { Manifest } from "./manifest.js";
@@ -39,6 +45,12 @@ export interface FirstmileServerOptions {
   presence?: PresenceThresholds;
   limits?: FirstmileLimits;
   meta?: () => unknown;
+  /**
+   * Optional path to a JSONL file. When set, every stored event is appended and
+   * the file is replayed on boot so telemetry survives restarts. Leave unset for
+   * the default in-memory-only behavior.
+   */
+  persistPath?: string;
 }
 
 export interface FirstmileLimits {
@@ -71,6 +83,8 @@ export interface FirstmileServer {
   exportJsonl(): string;
   sessionCount(): number;
   reset(): void;
+  /** Closes the persistence append handle, if any. Safe to call when disabled. */
+  close(): void;
 }
 
 function setCorsHeaders(
@@ -124,6 +138,18 @@ async function readLimitedText(request: Request, maxBytes: number): Promise<stri
   return new TextDecoder().decode(bytes);
 }
 
+function isReplayableEvent(value: unknown): value is FirstmileEvent {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.sessionId === "string" &&
+    typeof candidate.seq === "number" &&
+    typeof candidate.ts === "number" &&
+    typeof candidate.type === "string" &&
+    typeof candidate.manifestVersion === "string"
+  );
+}
+
 function referencesKnownSteps(event: FirstmileEvent, stepIds: ReadonlySet<string>): boolean {
   if ((event.type === "page_view" || event.type === "step_error" || event.type === "step_complete" || event.type === "paste_result") && !stepIds.has(event.step)) return false;
   return event.type !== "page_view" || event.from === undefined || stepIds.has(event.from);
@@ -151,6 +177,56 @@ export function createFirstmile(
   const meta = options.meta ?? (() => null);
   let windowStartedAt = Date.now();
   let requestsInWindow = 0;
+
+  // Optional disk-backed persistence. When persistPath is set, stored events are
+  // appended as JSONL and replayed on boot so telemetry survives restarts. Replay
+  // goes straight through the reducer, bypassing the HTTP ingest rate/body limits.
+  const persistPath =
+    typeof options.persistPath === "string" && options.persistPath.trim() !== ""
+      ? options.persistPath
+      : null;
+  let appendFd: number | null = null;
+
+  function replayFromDisk(path: string): void {
+    let content: string;
+    try {
+      content = readFileSync(path, "utf8");
+    } catch {
+      return; // No file yet; a fresh service starts empty.
+    }
+    const cutoff = Date.now() - limits.retentionMs;
+    for (const line of content.split("\n")) {
+      if (line === "") continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue; // Skip malformed lines rather than crashing the boot.
+      }
+      if (!isReplayableEvent(parsed) || parsed.ts < cutoff) continue;
+      let result: ReturnType<typeof reduceEvent>;
+      try {
+        result = reduceEvent(sessions.get(parsed.sessionId), parsed, manifest);
+      } catch {
+        continue;
+      }
+      if (result.duplicate) continue;
+      sessions.set(parsed.sessionId, result.session);
+      if (result.storedEvent !== null) {
+        events.push(result.storedEvent);
+        if (events.length > limits.maxEvents) events.splice(0, events.length - limits.maxEvents);
+      }
+    }
+  }
+
+  if (persistPath !== null) {
+    replayFromDisk(persistPath);
+    try {
+      appendFd = openSync(persistPath, "a");
+    } catch {
+      appendFd = null; // Degrade to in-memory if the file cannot be opened.
+    }
+  }
 
   function prune(now = Date.now()): void {
     const cutoff = now - limits.retentionMs;
@@ -218,7 +294,15 @@ export function createFirstmile(
       if (result.storedEvent !== null) {
         events.push(result.storedEvent);
         if (events.length > limits.maxEvents) events.splice(0, events.length - limits.maxEvents);
-        process.stdout.write(`${JSON.stringify(result.storedEvent)}\n`);
+        const line = `${JSON.stringify(result.storedEvent)}\n`;
+        process.stdout.write(line);
+        if (appendFd !== null) {
+          try {
+            writeSync(appendFd, line);
+          } catch {
+            // Durability is best-effort; keep serving on write failure.
+          }
+        }
       }
       accepted += 1;
     }
@@ -264,6 +348,24 @@ export function createFirstmile(
   function reset(): void {
     sessions.clear();
     events.length = 0;
+    if (appendFd !== null) {
+      try {
+        ftruncateSync(appendFd, 0);
+      } catch {
+        // Best-effort; in-memory state is already cleared.
+      }
+    }
+  }
+
+  function close(): void {
+    if (appendFd !== null) {
+      try {
+        closeSync(appendFd);
+      } catch {
+        // Best-effort flush on shutdown.
+      }
+      appendFd = null;
+    }
   }
 
   return {
@@ -275,6 +377,7 @@ export function createFirstmile(
       return sessions.size;
     },
     reset,
+    close,
   };
 }
 

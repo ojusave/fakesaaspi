@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Hono } from "hono";
 import type { FirstmileEvent } from "../src/reducer.js";
 import {
@@ -440,5 +443,90 @@ describe("createFirstmile", () => {
     expect(server.sessionCount()).toBe(0);
     expect(server.exportJsonl()).toBe("");
     expect(server.snapshot().totals.started).toBe(0);
+  });
+
+  it("persists stored events to disk and replays them on restart", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "firstmile-persist-"));
+    const path = join(dir, "events.jsonl");
+    try {
+      const first = createFirstmile({ manifest, adminToken: "secret", persistPath: path });
+      await first.routes.request("/api/events", {
+        method: "POST",
+        headers: writeHeaders,
+        body: JSON.stringify({
+          events: [
+            event(1, { type: "session_start" }),
+            event(2, { type: "page_view", step: "one", nav: "forward" }),
+            event(3, { type: "step_complete", step: "two", elapsedMs: 5 }),
+            event(4, { type: "shipped", totalMs: 9 }),
+          ],
+        }),
+      });
+      const totalsBefore = first.snapshot().totals;
+      const exportBefore = first.exportJsonl();
+      expect(first.sessionCount()).toBe(1);
+      first.close();
+
+      // A fresh server with the same path replays the file on boot.
+      const restarted = createFirstmile({ manifest, adminToken: "secret", persistPath: path });
+      expect(restarted.sessionCount()).toBe(1);
+      expect(restarted.snapshot().totals).toEqual(totalsBefore);
+      expect(restarted.exportJsonl()).toBe(exportBefore);
+      restarted.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reset() truncates the persistence file so a restart starts empty", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "firstmile-persist-"));
+    const path = join(dir, "events.jsonl");
+    try {
+      const server = createFirstmile({ manifest, adminToken: "secret", persistPath: path });
+      await server.routes.request("/api/events", {
+        method: "POST",
+        headers: writeHeaders,
+        body: JSON.stringify({
+          events: [
+            event(1, { type: "session_start" }),
+            event(2, { type: "page_view", step: "one", nav: "forward" }),
+          ],
+        }),
+      });
+      expect(readFileSync(path, "utf8")).not.toBe("");
+
+      server.reset();
+      expect(readFileSync(path, "utf8")).toBe("");
+      expect(server.sessionCount()).toBe(0);
+      server.close();
+
+      const restarted = createFirstmile({ manifest, adminToken: "secret", persistPath: path });
+      expect(restarted.sessionCount()).toBe(0);
+      restarted.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("replays valid lines and skips malformed ones without crashing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "firstmile-persist-"));
+    const path = join(dir, "events.jsonl");
+    try {
+      const good1 = JSON.stringify(event(1, { type: "session_start" }));
+      const good2 = JSON.stringify(
+        event(2, { type: "page_view", step: "one", nav: "forward" }),
+      );
+      writeFileSync(
+        path,
+        `${good1}\nnot json at all\n{"partial":true}\n\n${good2}\n`,
+      );
+
+      const server = createFirstmile({ manifest, adminToken: "secret", persistPath: path });
+      expect(server.sessionCount()).toBe(1);
+      expect(server.snapshot().totals.started).toBe(1);
+      server.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
