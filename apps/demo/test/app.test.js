@@ -26,6 +26,12 @@ describe("FakeSaaSPI server", () => {
     expect((await app.request("/admin?token=admin-secret")).status).toBe(200);
     const response = await app.request("/api/people");
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ count: 0, people: [] });
+    expect(await response.json()).toMatchObject({
+      count: 0,
+      totals: { started: 0, errorEvents: 0, retried: 0 },
+      steps: expect.any(Array),
+      errors: [],
+      people: [],
+    });
   });
 });

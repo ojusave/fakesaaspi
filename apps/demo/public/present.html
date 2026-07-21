@@ -5,133 +5,252 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="/favicon.svg">
-  <title>fakesaaspi live</title>
+  <title>fakesaaspi live evidence</title>
   <style>
     :root {
       color-scheme: dark;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --bg: #0b0d12;
-      --card: #151922;
-      --border: #2a3140;
-      --text: #eef1f6;
-      --muted: #9aa3b5;
-      --accent: #3b82f6;
-      --ok: #34d399;
-      --warn: #fbbf24;
-      --bad: #f87171;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #08111f;
+      --panel: #101c2d;
+      --panel-strong: #14243a;
+      --border: #2b3d57;
+      --text: #f7f9fc;
+      --muted: #a9b7ca;
+      --blue: #64a5ff;
+      --cyan: #5eead4;
+      --green: #55d98b;
+      --amber: #f8ca5a;
+      --red: #ff8383;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(1200px 600px at 20% -10%, #1a2450 0%, transparent 55%), var(--bg);
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(900px 500px at 15% -10%, #17345f 0%, transparent 62%),
+        var(--bg);
       color: var(--text);
     }
     header {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 24px;
-      padding: 28px 36px 18px;
+      height: 17vh;
+      min-height: 112px;
+      display: grid;
+      grid-template-columns: minmax(340px, 1fr) minmax(650px, 1.8fr);
+      align-items: center;
+      gap: 28px;
+      padding: 18px 30px;
       border-bottom: 1px solid var(--border);
     }
-    h1 { margin: 0; font-size: 28px; font-weight: 700; }
-    .sub { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
-    .stats { display: flex; gap: 18px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-    .stats strong { color: var(--text); font-size: 22px; display: block; }
-    main { padding: 24px 36px 40px; }
-    #grid {
+    h1 { margin: 0; font-size: clamp(25px, 2.2vw, 38px); line-height: 1; }
+    .sub { margin: 9px 0 0; max-width: 680px; color: var(--muted); font-size: clamp(12px, 1.05vw, 17px); line-height: 1.35; }
+    .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      font-variant-numeric: tabular-nums;
     }
-    .card {
+    .stat {
+      min-width: 0;
+      padding: 11px 12px 9px;
       border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--card);
-      padding: 18px 18px 16px;
-      min-height: 148px;
+      border-radius: 11px;
+      background: rgba(16, 28, 45, 0.84);
+    }
+    .stat strong { display: block; font-size: clamp(22px, 2vw, 34px); line-height: 1; }
+    .stat span { display: block; margin-top: 5px; color: var(--muted); font-size: clamp(10px, .82vw, 13px); text-transform: uppercase; letter-spacing: .06em; }
+    .stat.shipped strong { color: var(--green); }
+    .stat.errors strong { color: var(--amber); }
+    #freshness { margin-top: 8px; color: var(--cyan); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #freshness.stale { color: var(--red); }
+    main {
+      height: 83vh;
+      display: grid;
+      grid-template-columns: minmax(600px, 1.65fr) minmax(360px, 1fr);
+      gap: 16px;
+      padding: 16px 30px 24px;
+    }
+    .panel {
+      min-height: 0;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      background: rgba(16, 28, 45, 0.88);
+      overflow: hidden;
+    }
+    .panel-head {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 16px 11px;
+      border-bottom: 1px solid var(--border);
     }
-    .card.shipped {
-      border-color: rgba(52, 211, 153, 0.65);
-      background: linear-gradient(180deg, #13261f 0%, var(--card) 55%);
+    h2 { margin: 0; font-size: clamp(16px, 1.35vw, 22px); }
+    .note { color: var(--muted); font-size: clamp(10px, .85vw, 13px); }
+    .route { display: grid; grid-template-rows: auto 1fr; }
+    #steps {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
+      column-gap: 18px;
+      padding: 10px 16px 14px;
     }
-    .card.shipped .field { color: var(--ok); }
-    .card.closed, .card.idle { opacity: 0.72; }
-    .name { font-size: 20px; font-weight: 700; line-height: 1.2; }
-    .page { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .field { font-size: 17px; color: var(--accent); font-weight: 600; line-height: 1.25; }
-    .meta { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-    .status {
-      display: inline-flex;
+    .step {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 26px minmax(120px, 1fr) minmax(92px, .85fr) 42px;
       align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
+      gap: 8px;
+      border-bottom: 1px solid rgba(43, 61, 87, .7);
+      font-size: clamp(10px, .9vw, 14px);
+      font-variant-numeric: tabular-nums;
     }
+    .step:nth-last-child(-n+2) { border-bottom: 0; }
+    .step-number { color: var(--muted); }
+    .step-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+    .step-bar { height: 8px; border-radius: 99px; background: #263750; overflow: hidden; }
+    .step-fill { display: block; height: 100%; min-width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+    .step-count { text-align: right; font-weight: 750; }
+    .step-count small { color: var(--muted); font-size: .76em; font-weight: 500; }
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(160px, .75fr) minmax(230px, 1.25fr); gap: 16px; }
+    #errors, #people { min-height: 0; overflow: hidden; }
+    .error-list, .people-list { list-style: none; margin: 0; padding: 6px 14px 12px; }
+    .error-row {
+      display: grid;
+      grid-template-columns: minmax(90px, .8fr) minmax(110px, 1fr) 34px;
+      gap: 8px;
+      padding: 8px 2px;
+      border-bottom: 1px solid rgba(43, 61, 87, .7);
+      font-size: clamp(10px, .88vw, 14px);
+      font-variant-numeric: tabular-nums;
+    }
+    .error-code { color: var(--amber); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .error-step { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .error-count { text-align: right; font-weight: 750; }
+    .empty { padding: 26px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+    .person {
+      display: grid;
+      grid-template-columns: 10px minmax(120px, .8fr) minmax(150px, 1.2fr) auto;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 2px;
+      border-bottom: 1px solid rgba(43, 61, 87, .7);
+      font-size: clamp(10px, .86vw, 14px);
+      font-variant-numeric: tabular-nums;
+    }
+    .person:last-child, .error-row:last-child { border-bottom: 0; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-    .card.active .dot { background: var(--ok); }
-    .card.shipped .dot { background: var(--ok); }
-    .card.idle .dot { background: var(--warn); }
-    .card.closed .dot { background: var(--bad); }
-    #empty {
-      display: none;
-      padding: 80px 20px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 20px;
+    .person.active .dot, .person.shipped .dot { background: var(--green); }
+    .person.idle .dot { background: var(--amber); }
+    .person.closed .dot { background: var(--red); }
+    .person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .person-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--blue); }
+    .person-time { color: var(--muted); text-align: right; }
+    @media (max-width: 1000px) {
+      header { grid-template-columns: 1fr; height: 24vh; gap: 10px; }
+      main { height: 76vh; grid-template-columns: 1.45fr 1fr; padding: 12px 18px 18px; }
+      .stats { grid-template-columns: repeat(6, 1fr); }
+      .stat { padding: 7px 8px; }
+      .sub { display: none; }
+      .step { grid-template-columns: 22px minmax(90px, 1fr) 70px 34px; }
     }
-    #freshness { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-    #freshness.stale { color: var(--bad); }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>fakesaaspi live</h1>
-      <p class="sub">Every attendee, one card. Names are fake. Frustration is real.</p>
+      <h1>What happened in this route?</h1>
+      <p class="sub">Names are generated. These cards show position, status, and timing. They do not tell us why someone stopped.</p>
+      <div id="freshness" aria-live="polite">connecting</div>
     </div>
-    <div class="stats">
-      <div><strong id="count">0</strong>people</div>
-      <div><strong id="active">0</strong>active</div>
-      <div><strong id="shipped">0</strong>shipped</div>
-      <div id="freshness">connecting</div>
+    <div class="stats" aria-label="Live route totals">
+      <div class="stat"><strong id="started">0</strong><span>started</span></div>
+      <div class="stat"><strong id="active">0</strong><span>active</span></div>
+      <div class="stat shipped"><strong id="shipped">0</strong><span>shipped</span></div>
+      <div class="stat"><strong id="closed">0</strong><span>closed or bailed</span></div>
+      <div class="stat errors"><strong id="error-events">0</strong><span>error events</span></div>
+      <div class="stat"><strong id="median">n/a</strong><span>median to ship</span></div>
     </div>
   </header>
   <main>
-    <div id="empty">Waiting for the first phone to join...</div>
-    <div id="grid"></div>
+    <section class="panel route" aria-labelledby="route-title">
+      <div class="panel-head">
+        <h2 id="route-title">Named route reach</h2>
+        <span class="note">Distinct sessions that reached each step</span>
+      </div>
+      <div id="steps"></div>
+    </section>
+    <div class="side">
+      <section class="panel" aria-labelledby="errors-title">
+        <div class="panel-head">
+          <h2 id="errors-title">Recorded validation errors</h2>
+          <span class="note"><strong id="retried">0</strong> retried</span>
+        </div>
+        <div id="errors"></div>
+      </section>
+      <section class="panel" aria-labelledby="people-title">
+        <div class="panel-head">
+          <h2 id="people-title">Anonymous session position</h2>
+          <span class="note"><strong id="people-count">0</strong> sessions</span>
+        </div>
+        <div id="people"></div>
+      </section>
+    </div>
   </main>
   <script>
-    const grid = document.getElementById("grid");
-    const empty = document.getElementById("empty");
     const freshness = document.getElementById("freshness");
+    const stepsRoot = document.getElementById("steps");
+    const errorsRoot = document.getElementById("errors");
+    const peopleRoot = document.getElementById("people");
     let lastOk = 0;
 
-    function card(person) {
-      const el = document.createElement("article");
-      el.className = `card ${person.status}`;
-      el.innerHTML = `
-        <div class="status"><span class="dot"></span>${person.status}</div>
-        <div class="name"></div>
-        <div class="page"></div>
-        <div class="field"></div>
-        <div class="meta">
-          <span>Here: <strong class="step-time"></strong></span>
-          <span>Total: <strong class="total-time"></strong></span>
-        </div>
+    function stepRow(step, index, started) {
+      const row = document.createElement("div");
+      row.className = "step";
+      const percent = started > 0 ? Math.max(0, Math.min(100, (step.count / started) * 100)) : 0;
+      row.innerHTML = `
+        <span class="step-number"></span>
+        <span class="step-name"></span>
+        <span class="step-bar" aria-hidden="true"><span class="step-fill"></span></span>
+        <span class="step-count"></span>
       `;
-      el.querySelector(".name").textContent = person.name;
-      el.querySelector(".page").textContent = `Page: ${person.page || "-"}`;
-      el.querySelector(".field").textContent = `Field: ${person.field || "-"}`;
-      el.querySelector(".step-time").textContent = person.stepLabel;
-      el.querySelector(".total-time").textContent = person.totalLabel;
-      return el;
+      row.querySelector(".step-number").textContent = String(index + 1).padStart(2, "0");
+      row.querySelector(".step-name").textContent = step.label || step.id;
+      row.querySelector(".step-fill").style.width = `${percent}%`;
+      const count = row.querySelector(".step-count");
+      count.textContent = String(step.count || 0);
+      const suffix = document.createElement("small");
+      suffix.textContent = `/${started}`;
+      count.append(suffix);
+      return row;
+    }
+
+    function errorRow(error) {
+      const row = document.createElement("div");
+      row.className = "error-row";
+      row.innerHTML = '<span class="error-step"></span><span class="error-code"></span><span class="error-count"></span>';
+      row.querySelector(".error-step").textContent = error.step;
+      row.querySelector(".error-code").textContent = error.code;
+      row.querySelector(".error-count").textContent = String(error.count);
+      return row;
+    }
+
+    function personRow(person) {
+      const row = document.createElement("div");
+      row.className = `person ${person.status}`;
+      row.innerHTML = '<span class="dot"></span><span class="person-name"></span><span class="person-where"></span><span class="person-time"></span>';
+      row.querySelector(".person-name").textContent = person.name;
+      row.querySelector(".person-where").textContent = person.where;
+      row.querySelector(".person-time").textContent = person.totalLabel;
+      return row;
+    }
+
+    function empty(message) {
+      const node = document.createElement("div");
+      node.className = "empty";
+      node.textContent = message;
+      return node;
     }
 
     async function tick() {
@@ -141,19 +260,31 @@
         const data = await response.json();
         lastOk = Date.now();
         freshness.classList.remove("stale");
-        freshness.textContent = "live";
+        freshness.textContent = "live evidence, refreshed each second";
+
+        const totals = data.totals || {};
+        const started = totals.started || 0;
+        document.getElementById("started").textContent = String(started);
+        document.getElementById("active").textContent = String(totals.activeNow || 0);
+        document.getElementById("shipped").textContent = String(totals.shipped || 0);
+        document.getElementById("closed").textContent = String((totals.closed || 0) + (totals.bailed || 0));
+        document.getElementById("error-events").textContent = String(totals.errorEvents || 0);
+        document.getElementById("retried").textContent = String(totals.retried || 0);
+        document.getElementById("median").textContent = data.medianShipLabel || "n/a";
+
+        const steps = data.steps || [];
+        stepsRoot.replaceChildren(...steps.map((step, index) => stepRow(step, index, started)));
+
+        const errors = data.errors || [];
+        errorsRoot.replaceChildren(
+          ...(errors.length ? errors.slice(0, 7).map(errorRow) : [empty("No validation errors recorded yet")]),
+        );
 
         const people = data.people || [];
-        document.getElementById("count").textContent = String(people.length);
-        document.getElementById("active").textContent = String(
-          people.filter((p) => p.status === "active").length,
+        document.getElementById("people-count").textContent = String(people.length);
+        peopleRoot.replaceChildren(
+          ...(people.length ? people.slice(0, 10).map(personRow) : [empty("Waiting for the first session")]),
         );
-        document.getElementById("shipped").textContent = String(
-          people.filter((p) => p.status === "shipped").length,
-        );
-
-        empty.style.display = people.length === 0 ? "block" : "none";
-        grid.replaceChildren(...people.map(card));
       } catch {
         if (Date.now() - lastOk > 3000) {
           freshness.classList.add("stale");
