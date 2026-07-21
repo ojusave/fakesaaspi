@@ -58,4 +58,60 @@ describe("people dashboard", () => {
     expect(result.totalMs).toBe(6_000);
     expect(result.stepMs).toBe(4_000);
   });
+
+  it("exposes bounded aggregate evidence without session identifiers", () => {
+    const result = buildPeople(
+      eventSource([
+        { sessionId: "session-one", type: "session_start", ts: 1_000 },
+        { sessionId: "session-one", type: "page_view", step: "company_email", ts: 2_000 },
+        { sessionId: "session-one", type: "step_error", step: "company_email", code: "freemail", attempt: 1, ts: 3_000 },
+        { sessionId: "session-one", type: "step_error", step: "company_email", code: "freemail", attempt: 2, ts: 4_000 },
+        { sessionId: "session-two", type: "session_start", ts: 2_000 },
+        { sessionId: "session-two", type: "page_view", step: "phone", ts: 3_000 },
+        { sessionId: "session-two", type: "step_error", step: "phone", code: "format", attempt: 1, ts: 4_000 },
+      ]),
+      5_000,
+      {
+        totals: {
+          started: 2,
+          activeNow: 2,
+          shipped: 0,
+          closed: 0,
+          bailed: 0,
+          backgrounded: 0,
+          backtracksTotal: 1,
+        },
+        medianShipMs: null,
+        steps: [
+          {
+            id: "company_email",
+            count: 1,
+            errorCount: 2,
+            returnsTo: 0,
+            medianMsInStep: 1_500,
+          },
+        ],
+      },
+    );
+
+    expect(result.totals).toMatchObject({
+      started: 2,
+      errorEvents: 3,
+      retried: 1,
+      backtracks: 1,
+    });
+    expect(result.errors).toEqual([
+      { step: "company_email", code: "freemail", count: 2 },
+      { step: "phone", code: "format", count: 1 },
+    ]);
+    expect(result.steps[0]).toMatchObject({
+      id: "company_email",
+      label: "Work email",
+      count: 1,
+      errorCount: 2,
+      medianLabel: "0:01",
+    });
+    expect(JSON.stringify(result)).not.toContain("session-one");
+    expect(JSON.stringify(result)).not.toContain("session-two");
+  });
 });

@@ -108,11 +108,32 @@ function infoFor(step) {
   return STEP_INFO[step] || { page: step, field: "-" };
 }
 
+function publicStep(step) {
+  const info = infoFor(step.id);
+  return {
+    id: step.id,
+    page: info.page,
+    field: info.field,
+    label: info.field === "-" ? info.page : info.field,
+    count: step.count ?? 0,
+    errorCount: step.errorCount ?? 0,
+    returnsTo: step.returnsTo ?? 0,
+    medianMsInStep: step.medianMsInStep ?? null,
+    medianLabel:
+      typeof step.medianMsInStep === "number"
+        ? formatDuration(step.medianMsInStep)
+        : null,
+  };
+}
+
 /**
  * Builds the live people dashboard payload from exported JSONL events.
  */
-export function buildPeople(fm, now = Date.now()) {
+export function buildPeople(fm, now = Date.now(), dashboard = null) {
   const sessions = new Map();
+  const errorCounts = new Map();
+  const retriedSessions = new Set();
+  let errorEvents = 0;
   const jsonl = fm.exportJsonl();
   if (jsonl.length > 0) {
     for (const line of jsonl.split("\n")) {
@@ -159,6 +180,16 @@ export function buildPeople(fm, now = Date.now()) {
         row.closed = true;
         row.closedAt = event.ts;
       }
+      if (event.type === "step_error") {
+        errorEvents += 1;
+        const step = typeof event.step === "string" ? event.step : "unknown";
+        const code = typeof event.code === "string" ? event.code : "unknown";
+        const key = `${step}\u0000${code}`;
+        errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+        if (typeof event.attempt === "number" && event.attempt > 1) {
+          retriedSessions.add(event.sessionId);
+        }
+      }
     }
   }
 
@@ -178,7 +209,6 @@ export function buildPeople(fm, now = Date.now()) {
       else if (row.closed) status = "closed";
       else if (now - row.lastSeen > 45_000) status = "idle";
       return {
-        id: row.sessionId,
         name: nameFor(row.sessionId),
         step: step || "started",
         page,
@@ -201,6 +231,39 @@ export function buildPeople(fm, now = Date.now()) {
   return {
     generatedAt: now,
     count: people.length,
+    totals: {
+      started: dashboard?.totals?.started ?? people.length,
+      activeNow:
+        dashboard?.totals?.activeNow ??
+        people.filter((person) => person.status === "active").length,
+      shipped:
+        dashboard?.totals?.shipped ??
+        people.filter((person) => person.status === "shipped").length,
+      closed: dashboard?.totals?.closed ?? 0,
+      bailed: dashboard?.totals?.bailed ?? 0,
+      backgrounded: dashboard?.totals?.backgrounded ?? 0,
+      backtracks: dashboard?.totals?.backtracksTotal ?? 0,
+      errorEvents,
+      retried: retriedSessions.size,
+    },
+    medianShipMs: dashboard?.medianShipMs ?? null,
+    medianShipLabel:
+      typeof dashboard?.medianShipMs === "number"
+        ? formatDuration(dashboard.medianShipMs)
+        : null,
+    steps: Array.isArray(dashboard?.steps)
+      ? dashboard.steps.map(publicStep)
+      : [],
+    errors: [...errorCounts.entries()]
+      .map(([key, count]) => {
+        const [step, code] = key.split("\u0000");
+        return { step, code, count };
+      })
+      .sort((left, right) =>
+        right.count - left.count ||
+        left.step.localeCompare(right.step) ||
+        left.code.localeCompare(right.code),
+      ),
     people,
   };
 }

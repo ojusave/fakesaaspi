@@ -96,7 +96,7 @@ export function createDemoApp(config) {
         releaseUrl: config.releaseUrl,
         writeKey: config.writeKey,
     }));
-    app.get("/api/people", (context) => context.json(buildPeople(fm)));
+    app.get("/api/people", (context) => context.json(buildPeople(fm, Date.now(), fm.snapshot())));
     app.post("/api/mint", async (context) => {
         if (context.req.header("X-Firstmile-Write-Key") !== config.writeKey)
             return context.json({ ok: false, error: "unauthorized" }, 401);

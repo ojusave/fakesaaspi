@@ -7,7 +7,7 @@ import {
 } from "./fakegpt-machine.js";
 
 const FOOTER =
-  "A parody built for a DevRelCon workshop. Nothing you type is stored or transmitted.";
+  "Workshop parody. Use fake details. Chat text stays in this browser. A pasted test token is sent to this service for verification.";
 const GITHUB_URL = "https://github.com/ojusave/fakesaaspi";
 const DISCLAIMER = "fakegpt cannot make mistakes.";
 

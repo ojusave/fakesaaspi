@@ -7,7 +7,7 @@ import {
 } from "./flow.js";
 
 const FOOTER =
-  "A parody built for a DevRelCon workshop. Nothing you type is stored or transmitted.";
+  "Workshop parody. Use fake details. Account and card fields stay in this browser. The generated test token is sent to this service so later steps can be verified.";
 const GITHUB_URL = "https://github.com/ojusave/fakesaaspi";
 
 const SIGNUP_IDS = [
@@ -58,7 +58,7 @@ A solemn PDF titled Synergy Q3 that is mostly clip art of handshakes.
 
 You can unsubscribe by yelling "synergy" into a well, or by using the unsubscribe link, whichever feels more on brand.
 
-Nothing you type here is stored. This box exists so the projector can watch you hesitate, sigh, and check it anyway.`,
+The workshop records that this step was reached, completed, or produced a validation error. It does not send the values entered in the account fields.`,
 
   app_terms: `Terms you will not read (but must check)
 
@@ -73,7 +73,7 @@ Credentials shown once are shown once. If you go back, we revoke them for "secur
 
 Scopes selected here "cannot be changed later." (They can. Everything can. That is the joke.)
 
-Nothing typed here is stored. Checking this box mostly proves you can still move your thumb after the scopes list.`,
+The workshop records that this step was reached and completed. It does not send the app name, selected scopes, card value, or checkbox value.`,
 };
 
 const fm = () => window.firstmile;
