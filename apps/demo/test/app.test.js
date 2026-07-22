@@ -19,8 +19,9 @@ describe("FakeSaaSPI server", () => {
     const projector = await app.request("/present");
     expect(projector.status).toBe(200);
     const projectorHtml = await projector.text();
-    expect(projectorHtml).toContain("How the room moved");
+    expect(projectorHtml).toContain("Observed route movement");
     expect(projectorHtml).toContain('id="flow-svg"');
+    expect(projectorHtml).toContain('data-skipped-stages');
     expect(projectorHtml).toContain("Distinct sessions observed on each route transition");
     expect((await app.request("/healthz")).status).toBe(200);
   });

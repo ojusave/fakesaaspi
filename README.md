@@ -39,7 +39,7 @@ A deliberately frustrating API onboarding exercise for workshops about the devel
 
 The QR code entry point for the live session is `/fakegpt`. The production app is [fakesaaspi.onrender.com](https://fakesaaspi.onrender.com/). Keep `ADMIN_TOKEN` out of slides, browser code, screenshots, and shared URLs.
 
-The curved paths on `/present` count distinct sessions observed moving between named route groups. A session counts once per route-to-route edge, even if it retries the same transition. Solid blue paths show forward movement, and dashed amber paths show backtracking. A narrower path shows that fewer observed sessions traversed that edge by the current cutoff. It does not establish abandonment, frustration, or cause.
+The curved paths on `/present` count distinct sessions observed moving between named route groups. A session counts once per route-to-route edge, even if it retries the same transition. Solid blue paths show observed forward movement, dashed amber paths show backtracking, and the quiet dotted line shows the intended route. An arc over a stage means the observed session entered at or moved to a later stage without a recorded visit to the skipped stage. Named step reach also uses explicit page-view events rather than inferring that every earlier step was visited. A narrower path shows that fewer observed sessions traversed that edge by the current cutoff. It does not establish abandonment, frustration, or cause.
 
 `/admin/reset` only wipes in-memory state. The stdout JSONL log (each accepted event is mirrored in the Render logs) is unaffected and remains the archive.
 
