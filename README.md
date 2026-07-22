@@ -11,7 +11,7 @@ A deliberately frustrating API onboarding exercise for workshops about the devel
 ## Highlights
 
 - **Phone-first workshop flow:** participants experience avoidable signup, configuration, and permission friction before reaching first success.
-- **Live presenter views:** `/present` shows aggregate progress, while the token-protected admin page switches the exercise between trap and release states.
+- **Live presenter views:** `/present` shows aggregate progress and distinct-session movement between route groups, while the token-protected admin page switches the exercise between trap and release states.
 - **Scoped telemetry:** form values remain in the participant's browser. The server receives declared step IDs and lifecycle events.
 - **Reproducible Render setup:** the Blueprint creates a dedicated project, production environment, free web service, generated credentials, and a health check.
 
@@ -38,6 +38,8 @@ A deliberately frustrating API onboarding exercise for workshops about the devel
 | `/admin/reset` | Presenter | `POST`, admin-token gated: clears in-memory sessions, events, and minted tokens so `/present` starts empty |
 
 The QR code entry point for the live session is `/fakegpt`. The production app is [fakesaaspi.onrender.com](https://fakesaaspi.onrender.com/). Keep `ADMIN_TOKEN` out of slides, browser code, screenshots, and shared URLs.
+
+The curved paths on `/present` count distinct sessions observed moving between named route groups. A session counts once per route-to-route edge, even if it retries the same transition. Solid blue paths show forward movement, and dashed amber paths show backtracking. A narrower path shows that fewer observed sessions traversed that edge by the current cutoff. It does not establish abandonment, frustration, or cause.
 
 `/admin/reset` only wipes in-memory state. The stdout JSONL log (each accepted event is mirrored in the Render logs) is unaffected and remains the archive.
 

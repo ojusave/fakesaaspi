@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPeople } from "../src/people.js";
+import { buildFlow, buildPeople } from "../src/people.js";
 
 function eventSource(events) {
   return {
@@ -10,6 +10,63 @@ function eventSource(events) {
 }
 
 describe("people dashboard", () => {
+  it("counts distinct session transitions without inflating retries", () => {
+    const flow = buildFlow([
+      { sessionId: "one", seq: 1, ts: 1_000, type: "session_start" },
+      { sessionId: "one", seq: 2, ts: 2_000, type: "page_view", step: "fakegpt_chat", nav: "forward" },
+      { sessionId: "one", seq: 3, ts: 3_000, type: "page_view", step: "welcome", nav: "forward", from: "fakegpt_chat" },
+      { sessionId: "one", seq: 4, ts: 4_000, type: "page_view", step: "name", nav: "forward", from: "welcome" },
+      { sessionId: "one", seq: 5, ts: 5_000, type: "step_error", step: "name", code: "required", attempt: 1 },
+      { sessionId: "one", seq: 6, ts: 6_000, type: "page_view", step: "company", nav: "forward", from: "name" },
+      { sessionId: "one", seq: 7, ts: 7_000, type: "page_view", step: "welcome", nav: "back", from: "company" },
+      { sessionId: "one", seq: 8, ts: 8_000, type: "page_view", step: "name", nav: "forward", from: "welcome" },
+      { sessionId: "two", seq: 1, ts: 1_500, type: "session_start" },
+      { sessionId: "two", seq: 2, ts: 2_500, type: "page_view", step: "fakegpt_chat", nav: "forward" },
+      { sessionId: "two", seq: 3, ts: 3_500, type: "page_view", step: "welcome", nav: "forward", from: "fakegpt_chat" },
+    ]);
+
+    expect(flow.sampleSize).toBe(2);
+    expect(flow.links).toEqual(expect.arrayContaining([
+      { source: "started", target: "fakegpt", direction: "forward", distinctSessions: 2 },
+      { source: "fakegpt", target: "welcome", direction: "forward", distinctSessions: 2 },
+      { source: "welcome", target: "signup", direction: "forward", distinctSessions: 1 },
+      { source: "signup", target: "welcome", direction: "back", distinctSessions: 1 },
+    ]));
+    expect(flow.links.filter((link) => link.source === "welcome" && link.target === "signup")).toHaveLength(1);
+  });
+
+  it("adds a shipped link only for an explicit shipped event", () => {
+    const withoutShipment = buildFlow([
+      { sessionId: "open", seq: 1, ts: 1_000, type: "session_start" },
+      { sessionId: "open", seq: 2, ts: 2_000, type: "page_view", step: "fakegpt_deploy", nav: "forward" },
+    ]);
+    const withShipment = buildFlow([
+      { sessionId: "done", seq: 1, ts: 1_000, type: "session_start" },
+      { sessionId: "done", seq: 2, ts: 2_000, type: "page_view", step: "fakegpt_deploy", nav: "forward" },
+      { sessionId: "done", seq: 3, ts: 3_000, type: "shipped" },
+    ]);
+
+    expect(withoutShipment.links.some((link) => link.target === "shipped")).toBe(false);
+    expect(withShipment.links).toContainEqual({
+      source: "deploy",
+      target: "shipped",
+      direction: "forward",
+      distinctSessions: 1,
+    });
+  });
+
+  it("ignores anomalous or incomplete sessions and exposes no session identifiers", () => {
+    const flow = buildFlow([
+      { sessionId: "private-session", seq: 1, ts: 1_000, type: "session_start" },
+      { sessionId: "private-session", seq: 2, ts: 2_000, type: "page_view", step: "welcome", nav: "forward", anomaly: true },
+      { sessionId: "missing-start", seq: 1, ts: 1_000, type: "page_view", step: "welcome", nav: "forward" },
+      { sessionId: "missing-start", seq: 2, ts: 2_000, type: "page_view", step: "name", nav: "forward", from: "welcome" },
+    ]);
+
+    expect(flow.links).toEqual([]);
+    expect(JSON.stringify(flow)).not.toContain("private-session");
+  });
+
   it("always assigns a complete fake name", () => {
     const result = buildPeople(
       eventSource([
@@ -110,6 +167,11 @@ describe("people dashboard", () => {
       count: 1,
       errorCount: 2,
       medianLabel: "0:01",
+    });
+    expect(result.flow).toMatchObject({
+      sampleSize: 2,
+      nodes: expect.any(Array),
+      links: expect.any(Array),
     });
     expect(JSON.stringify(result)).not.toContain("session-one");
     expect(JSON.stringify(result)).not.toContain("session-two");
