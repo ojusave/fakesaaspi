@@ -107,7 +107,8 @@
     .flow-empty[hidden] { display: none; }
     .flow-legend { display: inline-flex; gap: 12px; align-items: center; }
     .flow-key { display: inline-flex; gap: 5px; align-items: center; }
-    .flow-key::before { width: 22px; border-top: 4px solid var(--blue); content: ""; }
+    .flow-key::before { width: 22px; border-top: 3px solid var(--blue); content: ""; }
+    .flow-key.route::before { border-color: #435873; border-top-style: dotted; }
     .flow-key.back::before { border-color: var(--amber); border-top-style: dashed; }
     .route-head { padding-block: 9px 8px; }
     .sr-only {
@@ -212,8 +213,8 @@
   <main>
     <section class="panel route" aria-labelledby="flow-title">
       <div class="panel-head">
-        <h2 id="flow-title">How the room moved</h2>
-        <span class="note flow-legend"><span class="flow-key">forward</span><span class="flow-key back">back</span></span>
+        <h2 id="flow-title">Observed route movement</h2>
+        <span class="note flow-legend"><span class="flow-key route">intended route</span><span class="flow-key">observed</span><span class="flow-key back">back</span></span>
       </div>
       <div class="flow-wrap">
         <svg id="flow-svg" viewBox="0 0 1200 330" role="img" aria-labelledby="flow-title flow-description"></svg>
@@ -295,7 +296,7 @@
 
       const left = 66;
       const right = 1134;
-      const baseline = 165;
+      const baseline = 150;
       const spacing = (right - left) / (nodes.length - 1);
       const positions = new Map(nodes.map((node, index) => [node.id, {
         x: left + index * spacing,
@@ -304,21 +305,50 @@
       }]));
       const divisor = Math.max(1, sampleSize);
 
+      for (let index = 0; index < nodes.length - 1; index += 1) {
+        const source = positions.get(nodes[index].id);
+        const target = positions.get(nodes[index + 1].id);
+        flowSvg.append(svgNode("path", {
+          d: `M ${source.x + 24} ${baseline} L ${target.x - 24} ${baseline}`,
+          fill: "none",
+          stroke: "#435873",
+          "stroke-width": 3,
+          "stroke-linecap": "round",
+          "stroke-dasharray": "3 9",
+          opacity: .72,
+        }));
+      }
+
       for (const link of links) {
         const source = positions.get(link.source);
         const target = positions.get(link.target);
         if (!source || !target) continue;
-        const width = 4 + 34 * Math.min(1, link.distinctSessions / divisor);
+        const ratio = Math.min(1, link.distinctSessions / divisor);
+        const width = 3 + 13 * Math.sqrt(ratio);
         const back = link.direction === "back";
-        const curveY = back ? 44 : baseline;
+        const distance = Math.abs(target.order - source.order);
+        const skippedStages = Math.max(0, distance - 1);
+        const direction = target.x >= source.x ? 1 : -1;
+        const startX = source.x + direction * 24;
+        const endX = target.x - direction * 24;
+        const midpoint = (startX + endX) / 2;
+        const curved = back || skippedStages > 0;
+        const curveY = back
+          ? baseline + Math.min(82, 42 + skippedStages * 14)
+          : baseline - Math.min(92, 48 + skippedStages * 18);
+        const pathData = curved
+          ? `M ${startX} ${baseline} C ${midpoint} ${curveY}, ${midpoint} ${curveY}, ${endX} ${baseline}`
+          : `M ${startX} ${baseline} L ${endX} ${baseline}`;
         const path = svgNode("path", {
-          d: `M ${source.x} ${baseline} C ${(source.x + target.x) / 2} ${curveY}, ${(source.x + target.x) / 2} ${curveY}, ${target.x} ${baseline}`,
+          d: pathData,
           fill: "none",
           stroke: back ? "var(--amber)" : "var(--blue)",
           "stroke-width": width,
           "stroke-linecap": "round",
-          "stroke-opacity": back ? .82 : .72,
+          "stroke-opacity": back ? .9 : .86,
           "stroke-dasharray": back ? "12 9" : "none",
+          "data-flow-direction": link.direction,
+          "data-skipped-stages": skippedStages,
         });
         const pathTitle = svgNode("title");
         pathTitle.textContent = `${labels.get(link.source)} to ${labels.get(link.target)}: ${link.distinctSessions} distinct sessions, ${link.direction}`;
@@ -326,10 +356,10 @@
         flowSvg.append(path);
 
         const count = svgNode("text", {
-          x: (source.x + target.x) / 2,
-          y: back ? 34 : 145,
+          x: midpoint,
+          y: curved ? (back ? curveY + 22 : curveY - 12) : baseline - 22,
           fill: back ? "var(--amber)" : "var(--text)",
-          "font-size": 17,
+          "font-size": 16,
           "font-weight": 750,
           "text-anchor": "middle",
           "paint-order": "stroke",
@@ -342,22 +372,31 @@
 
       for (const node of nodes) {
         const position = positions.get(node.id);
-        const ratio = Math.min(1, Number(node.distinctSessions || 0) / divisor);
-        const height = 54 + ratio * 88;
-        const block = svgNode("rect", {
-          x: position.x - 8,
-          y: baseline - height / 2,
-          width: 16,
-          height,
-          rx: 8,
-          fill: node.id === "shipped" ? "var(--green)" : "var(--cyan)",
-          stroke: "var(--panel)",
-          "stroke-width": 4,
+        const reached = Number(node.distinctSessions || 0) > 0;
+        const nodeColor = node.id === "shipped" ? "var(--green)" : "var(--cyan)";
+        const block = svgNode("circle", {
+          cx: position.x,
+          cy: baseline,
+          r: 20,
+          fill: reached ? "var(--panel-strong)" : "var(--panel)",
+          stroke: reached ? nodeColor : "#435873",
+          "stroke-width": reached ? 6 : 3,
+          opacity: reached ? 1 : .78,
         });
         flowSvg.append(block);
+        const nodeCount = svgNode("text", {
+          x: position.x,
+          y: baseline + 6,
+          fill: reached ? "var(--text)" : "var(--muted)",
+          "font-size": 16,
+          "font-weight": 800,
+          "text-anchor": "middle",
+        });
+        nodeCount.textContent = String(node.distinctSessions || 0);
+        flowSvg.append(nodeCount);
         const label = svgNode("text", {
           x: position.x,
-          y: 269,
+          y: 278,
           fill: "var(--text)",
           "font-size": 16,
           "font-weight": 700,
@@ -367,12 +406,12 @@
         flowSvg.append(label);
         const reach = svgNode("text", {
           x: position.x,
-          y: 292,
+          y: 302,
           fill: "var(--muted)",
           "font-size": 14,
           "text-anchor": "middle",
         });
-        reach.textContent = `${node.distinctSessions}/${sampleSize}`;
+        reach.textContent = `${node.distinctSessions} of ${sampleSize}`;
         flowSvg.append(reach);
       }
     }

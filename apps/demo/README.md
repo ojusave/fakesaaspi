@@ -19,7 +19,7 @@ npm start --workspace @firstmile/demo
 
 Open `http://localhost:10000`. The live entry point is `/fakegpt` (the QR code target), the projector is at `/present`, and the admin page is at `/admin?token=admin-secret`.
 
-The projector's curved route view is calculated after ingestion. It counts distinct sessions for each movement between route groups, so repeated traversal by one session does not inflate a path. Forward movement and backtracking remain separate. The visualization can show where observed activity changed, but not why a participant stopped.
+The projector's curved route view is calculated after ingestion. It counts distinct sessions for each movement between route groups, so repeated traversal by one session does not inflate a path. Forward movement and backtracking remain separate. A curved path over an unused node means the recorded session bypassed that route group. Named step reach uses explicit page-view events, not inferred passage through earlier steps. The visualization can show where observed activity changed, but not why a participant stopped.
 
 ## fakegpt
 

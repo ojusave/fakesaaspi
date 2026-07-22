@@ -55,6 +55,45 @@ describe("people dashboard", () => {
     });
   });
 
+  it("keeps a direct entry link when the session bypasses an earlier route group", () => {
+    const flow = buildFlow([
+      { sessionId: "direct", seq: 1, ts: 1_000, type: "session_start" },
+      { sessionId: "direct", seq: 2, ts: 2_000, type: "page_view", step: "welcome", nav: "forward" },
+    ]);
+
+    expect(flow.nodes.find((node) => node.id === "fakegpt")).toMatchObject({
+      distinctSessions: 0,
+    });
+    expect(flow.links).toContainEqual({
+      source: "started",
+      target: "welcome",
+      direction: "forward",
+      distinctSessions: 1,
+    });
+  });
+
+  it("reports explicit step reach instead of inferring every earlier step", () => {
+    const result = buildPeople(
+      eventSource([
+        { sessionId: "direct", seq: 1, ts: 1_000, type: "session_start" },
+        { sessionId: "direct", seq: 2, ts: 2_000, type: "page_view", step: "welcome", nav: "forward" },
+      ]),
+      3_000,
+      {
+        totals: { started: 1 },
+        steps: [
+          { id: "fakegpt_chat", count: 1 },
+          { id: "welcome", count: 1 },
+        ],
+      },
+    );
+
+    expect(result.steps).toEqual([
+      expect.objectContaining({ id: "fakegpt_chat", count: 0 }),
+      expect.objectContaining({ id: "welcome", count: 1 }),
+    ]);
+  });
+
   it("ignores anomalous or incomplete sessions and exposes no session identifiers", () => {
     const flow = buildFlow([
       { sessionId: "private-session", seq: 1, ts: 1_000, type: "session_start" },

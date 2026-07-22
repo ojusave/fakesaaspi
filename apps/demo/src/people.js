@@ -143,6 +143,40 @@ function addSession(map, key, sessionId) {
   map.set(key, sessions);
 }
 
+function buildExplicitStepReach(events) {
+  const startedSessions = new Set(
+    events
+      .filter(
+        (event) =>
+          event?.anomaly !== true &&
+          event?.type === "session_start" &&
+          event?.resumed !== true &&
+          typeof event?.sessionId === "string",
+      )
+      .map((event) => event.sessionId),
+  );
+  const sessionsByStep = new Map();
+
+  for (const event of events) {
+    if (
+      event?.anomaly === true ||
+      event?.type !== "page_view" ||
+      typeof event?.step !== "string" ||
+      !startedSessions.has(event?.sessionId)
+    ) {
+      continue;
+    }
+    addSession(sessionsByStep, event.step, event.sessionId);
+  }
+
+  return new Map(
+    [...sessionsByStep.entries()].map(([step, sessions]) => [
+      step,
+      sessions.size,
+    ]),
+  );
+}
+
 /**
  * Aggregates privacy-safe route movement. Each edge counts a session at most
  * once, so retries and repeated visits cannot make the curve look wider.
@@ -388,6 +422,7 @@ export function buildPeople(fm, now = Date.now(), dashboard = null) {
       if (b.status === "shipped" && a.status !== "shipped") return 1;
       return b.totalMs - a.totalMs;
     });
+  const explicitStepReach = buildExplicitStepReach(events);
 
   return {
     generatedAt: now,
@@ -413,7 +448,12 @@ export function buildPeople(fm, now = Date.now(), dashboard = null) {
         ? formatDuration(dashboard.medianShipMs)
         : null,
     steps: Array.isArray(dashboard?.steps)
-      ? dashboard.steps.map(publicStep)
+      ? dashboard.steps.map((step) =>
+          publicStep({
+            ...step,
+            count: explicitStepReach.get(step.id) ?? 0,
+          }),
+        )
       : [],
     errors: [...errorCounts.entries()]
       .map(([key, count]) => {
