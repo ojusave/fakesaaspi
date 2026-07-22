@@ -52,7 +52,7 @@ function grepForbidden(label, pattern, directory) {
   console.log("ok");
 }
 
-console.log("firstmile verify (Prompt 1)");
+console.log("firstmile verification");
 
 function checkKitDrift() {
   console.log("\n==> kit ownership drift check");
@@ -93,4 +93,4 @@ if (gzipBytes >= 10_240) {
   process.exit(1);
 }
 
-console.log("\nverify: ok (Prompt 1)");
+console.log("\nverify: ok");
