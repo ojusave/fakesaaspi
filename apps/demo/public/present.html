@@ -87,7 +87,40 @@
     }
     h2 { margin: 0; font-size: clamp(16px, 1.35vw, 22px); }
     .note { color: var(--muted); font-size: clamp(10px, .85vw, 13px); }
-    .route { display: grid; grid-template-rows: auto 1fr; }
+    .route { display: grid; grid-template-rows: auto minmax(210px, 1.05fr) auto minmax(250px, 1fr); }
+    .flow-wrap {
+      position: relative;
+      min-height: 0;
+      padding: 4px 12px 2px;
+      border-bottom: 1px solid var(--border);
+    }
+    #flow-svg { display: block; width: 100%; height: 100%; min-height: 210px; }
+    .flow-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 14px;
+      pointer-events: none;
+    }
+    .flow-empty[hidden] { display: none; }
+    .flow-legend { display: inline-flex; gap: 12px; align-items: center; }
+    .flow-key { display: inline-flex; gap: 5px; align-items: center; }
+    .flow-key::before { width: 22px; border-top: 4px solid var(--blue); content: ""; }
+    .flow-key.back::before { border-color: var(--amber); border-top-style: dashed; }
+    .route-head { padding-block: 9px 8px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     #steps {
       min-height: 0;
       display: grid;
@@ -153,6 +186,9 @@
       .stats { grid-template-columns: repeat(6, 1fr); }
       .stat { padding: 7px 8px; }
       .sub { display: none; }
+      .route { grid-template-rows: auto minmax(175px, .9fr) auto minmax(220px, 1.1fr); }
+      #flow-svg { min-height: 175px; }
+      .flow-legend { gap: 7px; }
       .step { grid-template-columns: 22px minmax(90px, 1fr) 70px 34px; }
     }
   </style>
@@ -168,14 +204,27 @@
       <div class="stat"><strong id="started">0</strong><span>started</span></div>
       <div class="stat"><strong id="active">0</strong><span>active</span></div>
       <div class="stat shipped"><strong id="shipped">0</strong><span>shipped</span></div>
-      <div class="stat"><strong id="closed">0</strong><span>closed or bailed</span></div>
+      <div class="stat"><strong id="closed">0</strong><span>closed / no recent activity</span></div>
       <div class="stat errors"><strong id="error-events">0</strong><span>error events</span></div>
       <div class="stat"><strong id="median">n/a</strong><span>median to ship</span></div>
     </div>
   </header>
   <main>
-    <section class="panel route" aria-labelledby="route-title">
+    <section class="panel route" aria-labelledby="flow-title">
       <div class="panel-head">
+        <h2 id="flow-title">How the room moved</h2>
+        <span class="note flow-legend"><span class="flow-key">forward</span><span class="flow-key back">back</span></span>
+      </div>
+      <div class="flow-wrap">
+        <svg id="flow-svg" viewBox="0 0 1200 330" role="img" aria-labelledby="flow-title flow-description"></svg>
+        <p class="flow-empty" id="flow-empty">Waiting for the first route transition</p>
+        <table class="sr-only" aria-label="Exact route transition counts">
+          <caption>Distinct sessions observed on each route transition</caption>
+          <thead><tr><th>From</th><th>To</th><th>Direction</th><th>Sessions</th></tr></thead>
+          <tbody id="flow-table"></tbody>
+        </table>
+      </div>
+      <div class="panel-head route-head">
         <h2 id="route-title">Named route reach</h2>
         <span class="note">Distinct sessions that reached each step</span>
       </div>
@@ -200,10 +249,133 @@
   </main>
   <script>
     const freshness = document.getElementById("freshness");
+    const flowSvg = document.getElementById("flow-svg");
+    const flowEmpty = document.getElementById("flow-empty");
+    const flowTable = document.getElementById("flow-table");
     const stepsRoot = document.getElementById("steps");
     const errorsRoot = document.getElementById("errors");
     const peopleRoot = document.getElementById("people");
     let lastOk = 0;
+
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function svgNode(name, attributes = {}) {
+      const node = document.createElementNS(SVG_NS, name);
+      for (const [key, value] of Object.entries(attributes)) {
+        node.setAttribute(key, String(value));
+      }
+      return node;
+    }
+
+    function flowTableRow(link, labels) {
+      const row = document.createElement("tr");
+      for (const value of [labels.get(link.source), labels.get(link.target), link.direction, link.distinctSessions]) {
+        const cell = document.createElement("td");
+        cell.textContent = String(value);
+        row.append(cell);
+      }
+      return row;
+    }
+
+    function drawFlow(flow) {
+      const nodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
+      const links = Array.isArray(flow?.links) ? flow.links : [];
+      const sampleSize = Number(flow?.sampleSize || 0);
+      const labels = new Map(nodes.map((node) => [node.id, node.label || node.id]));
+      const title = svgNode("title", { id: "flow-svg-title" });
+      title.textContent = "Distinct-session movement through the workshop route";
+      const description = svgNode("desc", { id: "flow-description" });
+      description.textContent = sampleSize > 0
+        ? `${sampleSize} sessions started. Solid blue curves show forward movement. Dashed amber curves show backtracking. Width represents distinct sessions, not raw events.`
+        : "No route transitions have been recorded yet.";
+      flowSvg.replaceChildren(title, description);
+      flowTable.replaceChildren(...links.map((link) => flowTableRow(link, labels)));
+      flowEmpty.hidden = links.length > 0;
+      if (nodes.length < 2 || links.length === 0) return;
+
+      const left = 66;
+      const right = 1134;
+      const baseline = 165;
+      const spacing = (right - left) / (nodes.length - 1);
+      const positions = new Map(nodes.map((node, index) => [node.id, {
+        x: left + index * spacing,
+        y: baseline,
+        order: index,
+      }]));
+      const divisor = Math.max(1, sampleSize);
+
+      for (const link of links) {
+        const source = positions.get(link.source);
+        const target = positions.get(link.target);
+        if (!source || !target) continue;
+        const width = 4 + 34 * Math.min(1, link.distinctSessions / divisor);
+        const back = link.direction === "back";
+        const curveY = back ? 44 : baseline;
+        const path = svgNode("path", {
+          d: `M ${source.x} ${baseline} C ${(source.x + target.x) / 2} ${curveY}, ${(source.x + target.x) / 2} ${curveY}, ${target.x} ${baseline}`,
+          fill: "none",
+          stroke: back ? "var(--amber)" : "var(--blue)",
+          "stroke-width": width,
+          "stroke-linecap": "round",
+          "stroke-opacity": back ? .82 : .72,
+          "stroke-dasharray": back ? "12 9" : "none",
+        });
+        const pathTitle = svgNode("title");
+        pathTitle.textContent = `${labels.get(link.source)} to ${labels.get(link.target)}: ${link.distinctSessions} distinct sessions, ${link.direction}`;
+        path.append(pathTitle);
+        flowSvg.append(path);
+
+        const count = svgNode("text", {
+          x: (source.x + target.x) / 2,
+          y: back ? 34 : 145,
+          fill: back ? "var(--amber)" : "var(--text)",
+          "font-size": 17,
+          "font-weight": 750,
+          "text-anchor": "middle",
+          "paint-order": "stroke",
+          stroke: "var(--panel)",
+          "stroke-width": 6,
+        });
+        count.textContent = String(link.distinctSessions);
+        flowSvg.append(count);
+      }
+
+      for (const node of nodes) {
+        const position = positions.get(node.id);
+        const ratio = Math.min(1, Number(node.distinctSessions || 0) / divisor);
+        const height = 54 + ratio * 88;
+        const block = svgNode("rect", {
+          x: position.x - 8,
+          y: baseline - height / 2,
+          width: 16,
+          height,
+          rx: 8,
+          fill: node.id === "shipped" ? "var(--green)" : "var(--cyan)",
+          stroke: "var(--panel)",
+          "stroke-width": 4,
+        });
+        flowSvg.append(block);
+        const label = svgNode("text", {
+          x: position.x,
+          y: 269,
+          fill: "var(--text)",
+          "font-size": 16,
+          "font-weight": 700,
+          "text-anchor": "middle",
+        });
+        label.textContent = node.label;
+        flowSvg.append(label);
+        const reach = svgNode("text", {
+          x: position.x,
+          y: 292,
+          fill: "var(--muted)",
+          "font-size": 14,
+          "text-anchor": "middle",
+        });
+        reach.textContent = `${node.distinctSessions}/${sampleSize}`;
+        flowSvg.append(reach);
+      }
+    }
 
     function stepRow(step, index, started) {
       const row = document.createElement("div");
@@ -271,6 +443,8 @@
         document.getElementById("error-events").textContent = String(totals.errorEvents || 0);
         document.getElementById("retried").textContent = String(totals.retried || 0);
         document.getElementById("median").textContent = data.medianShipLabel || "n/a";
+
+        drawFlow(data.flow);
 
         const steps = data.steps || [];
         stepsRoot.replaceChildren(...steps.map((step, index) => stepRow(step, index, started)));

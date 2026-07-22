@@ -1,3 +1,5 @@
+import { manifest as defaultManifest } from "./manifest.js";
+
 const ADJECTIVES = [
   "Sneaky",
   "Caffeinated",
@@ -71,6 +73,15 @@ const STEP_INFO = {
 const namesBySession = new Map();
 const takenNames = new Set();
 
+const GROUP_LABELS = {
+  fakegpt: "FakeGPT",
+  welcome: "Welcome",
+  signup: "Create account",
+  create_app: "Create app",
+  keys: "Keys",
+  deploy: "Deploy",
+};
+
 function hash(value) {
   let h = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -126,11 +137,160 @@ function publicStep(step) {
   };
 }
 
+function addSession(map, key, sessionId) {
+  const sessions = map.get(key) ?? new Set();
+  sessions.add(sessionId);
+  map.set(key, sessions);
+}
+
+/**
+ * Aggregates privacy-safe route movement. Each edge counts a session at most
+ * once, so retries and repeated visits cannot make the curve look wider.
+ */
+export function buildFlow(events, routeManifest = defaultManifest) {
+  const groupOrder = new Map(
+    routeManifest.groups.map((group, index) => [group, index]),
+  );
+  const groupByStep = new Map(
+    routeManifest.steps.map((step) => [step.id, step.group]),
+  );
+  const eventsBySession = new Map();
+
+  events.forEach((event, inputIndex) => {
+    if (
+      !event ||
+      event.anomaly === true ||
+      typeof event.sessionId !== "string"
+    ) {
+      return;
+    }
+    const sessionEvents = eventsBySession.get(event.sessionId) ?? [];
+    sessionEvents.push({ event, inputIndex });
+    eventsBySession.set(event.sessionId, sessionEvents);
+  });
+
+  const nodeSessions = new Map([
+    ["started", new Set()],
+    ...routeManifest.groups.map((group) => [group, new Set()]),
+    ["shipped", new Set()],
+  ]);
+  const linkSessions = new Map();
+  const linkDetails = new Map();
+
+  for (const [sessionId, unordered] of eventsBySession) {
+    const ordered = [...unordered].sort((left, right) => {
+      const leftSeq = Number.isSafeInteger(left.event.seq)
+        ? left.event.seq
+        : Number.MAX_SAFE_INTEGER;
+      const rightSeq = Number.isSafeInteger(right.event.seq)
+        ? right.event.seq
+        : Number.MAX_SAFE_INTEGER;
+      return (
+        leftSeq - rightSeq ||
+        Number(left.event.ts ?? 0) - Number(right.event.ts ?? 0) ||
+        left.inputIndex - right.inputIndex
+      );
+    });
+
+    if (
+      !ordered.some(
+        ({ event }) =>
+          event.type === "session_start" && event.resumed !== true,
+      )
+    ) {
+      continue;
+    }
+
+    let started = false;
+    let currentGroup = null;
+
+    for (const { event } of ordered) {
+      if (event.type === "session_start" && event.resumed !== true) {
+        started = true;
+        nodeSessions.get("started").add(sessionId);
+        continue;
+      }
+
+      if (event.type === "page_view" && typeof event.step === "string") {
+        const nextGroup = groupByStep.get(event.step);
+        if (nextGroup === undefined) continue;
+        nodeSessions.get(nextGroup).add(sessionId);
+
+        let source = currentGroup;
+        if (source === null && started) source = "started";
+        if (source !== null && source !== nextGroup) {
+          const sourceOrder = source === "started" ? -1 : groupOrder.get(source);
+          const targetOrder = groupOrder.get(nextGroup);
+          const direction =
+            event.nav === "back" ||
+            (sourceOrder !== undefined &&
+              targetOrder !== undefined &&
+              targetOrder < sourceOrder)
+              ? "back"
+              : "forward";
+          const key = `${source}\u0000${nextGroup}\u0000${direction}`;
+          addSession(linkSessions, key, sessionId);
+          linkDetails.set(key, { source, target: nextGroup, direction });
+        }
+        currentGroup = nextGroup;
+        continue;
+      }
+
+      if (event.type === "shipped" && currentGroup !== null) {
+        nodeSessions.get("shipped").add(sessionId);
+        const key = `${currentGroup}\u0000shipped\u0000forward`;
+        addSession(linkSessions, key, sessionId);
+        linkDetails.set(key, {
+          source: currentGroup,
+          target: "shipped",
+          direction: "forward",
+        });
+      }
+    }
+  }
+
+  const nodeOrder = ["started", ...routeManifest.groups, "shipped"];
+  const orderByNode = new Map(nodeOrder.map((id, index) => [id, index]));
+  const nodes = nodeOrder.map((id) => ({
+    id,
+    label:
+      id === "started"
+        ? "Started"
+        : id === "shipped"
+          ? "Shipped"
+          : GROUP_LABELS[id] ?? id,
+    order: orderByNode.get(id),
+    distinctSessions: nodeSessions.get(id)?.size ?? 0,
+  }));
+  const links = [...linkDetails.entries()]
+    .map(([key, detail]) => ({
+      ...detail,
+      distinctSessions: linkSessions.get(key)?.size ?? 0,
+    }))
+    .sort(
+      (left, right) =>
+        (orderByNode.get(left.source) ?? 0) -
+          (orderByNode.get(right.source) ?? 0) ||
+        (orderByNode.get(left.target) ?? 0) -
+          (orderByNode.get(right.target) ?? 0) ||
+        left.direction.localeCompare(right.direction),
+    );
+
+  return {
+    sampleSize: nodeSessions.get("started").size,
+    nodes,
+    links,
+    method:
+      "Widths count distinct sessions per group-to-group transition. Repeated traversal of the same edge by one session counts once.",
+  };
+}
+
 /**
  * Builds the live people dashboard payload from exported JSONL events.
  */
 export function buildPeople(fm, now = Date.now(), dashboard = null) {
   const sessions = new Map();
+  const events = [];
   const errorCounts = new Map();
   const retriedSessions = new Set();
   let errorEvents = 0;
@@ -145,6 +305,7 @@ export function buildPeople(fm, now = Date.now(), dashboard = null) {
         continue;
       }
       if (!event || typeof event.sessionId !== "string") continue;
+      events.push(event);
       let row = sessions.get(event.sessionId);
       if (!row) {
         row = {
@@ -264,6 +425,7 @@ export function buildPeople(fm, now = Date.now(), dashboard = null) {
         left.step.localeCompare(right.step) ||
         left.code.localeCompare(right.code),
       ),
+    flow: buildFlow(events),
     people,
   };
 }
